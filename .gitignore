@@ -39,3 +39,36 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.claude
+
+# docs / internal notes
+*.md
+!README.md
+
+# credentials & secrets
+*.pem
+*.key
+*.cert
+serviceAccountKey.json
+firebase-adminsdk*.json
+google-credentials*.json
+credentials*.json
+secrets/
+
+# scripts with embedded credentials
+start-n8n.sh
+*.sh
+
+# setup & config docs
+PRODUCCION_BACKEND.md
+PRODUCCION_FRONTEND.md
+SETUP_WHATSAPP_N8N.md
+instructions.md
+PANORAMA.md
+
+# workflow exports
+*.json
+!package.json
+!tsconfig.json
+!next.config*.json
+.start-n8n.sh

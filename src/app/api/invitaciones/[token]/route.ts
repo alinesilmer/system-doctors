@@ -1,48 +1,45 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import {
-  getInvitacionPorToken, completarInvitacion, aprobarInvitacion,
+  getInvitacionPorToken, completarInvitacion, aprobarInvitacion, estaVencida,
 } from '@/lib/firestore/invitaciones';
-import { crearPaciente } from '@/lib/firestore/pacientes';
+import {
+  conflicto, datosInvalidos, leerJson, manejarErrores, noEncontrado, ok, validar,
+} from '@/lib/api/respuestas';
+import { esquemaRegistroPaciente } from '@/lib/esquemas';
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params;
-  try {
-    const inv = await getInvitacionPorToken(token);
-    if (!inv) return NextResponse.json({ error: 'Enlace inválido o expirado' }, { status: 404 });
-    return NextResponse.json({ data: { estado: inv.estado } });
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
-  }
+type Contexto = { params: Promise<{ token: string }> };
+
+async function invitacionDe(ctx: Contexto) {
+  const { token } = await ctx.params;
+  const inv = await getInvitacionPorToken(token);
+  if (!inv || estaVencida(inv)) throw noEncontrado('Enlace inválido o expirado');
+  return inv;
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params;
-  try {
-    const inv = await getInvitacionPorToken(token);
-    if (!inv) return NextResponse.json({ error: 'Enlace inválido o expirado' }, { status: 404 });
-    if (inv.estado !== 'pendiente') return NextResponse.json({ error: 'Este formulario ya fue completado' }, { status: 409 });
+export const GET = manejarErrores(async (_req: NextRequest, ctx: Contexto) => {
+  const inv = await invitacionDe(ctx);
+  return ok({ data: { estado: inv.estado } });
+}, 'Error al validar el enlace');
 
-    const datos = await req.json();
-    await completarInvitacion(inv.id, datos);
-    return NextResponse.json({ mensaje: 'Datos recibidos correctamente. El médico revisará tu información.' });
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
-  }
-}
+// Endpoint público: lo usa el paciente desde el enlace, sin sesión. Sólo se
+// guardan los campos del formulario de registro, validados y acotados.
+export const POST = manejarErrores(async (req: NextRequest, ctx: Contexto) => {
+  const inv = await invitacionDe(ctx);
+  const datos = validar(esquemaRegistroPaciente, await leerJson(req));
 
-export async function PUT(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params;
-  try {
-    const inv = await getInvitacionPorToken(token);
-    if (!inv || inv.estado !== 'completado') {
-      return NextResponse.json({ error: 'No hay datos para aprobar' }, { status: 400 });
-    }
-    if (!inv.datosPaciente) return NextResponse.json({ error: 'Sin datos de paciente' }, { status: 400 });
+  if (!await completarInvitacion(inv.id, datos)) throw conflicto('Este formulario ya fue completado');
+  return ok({ mensaje: 'Datos recibidos correctamente. El médico revisará tu información.' });
+}, 'Error al guardar el formulario');
 
-    const pacienteId = await crearPaciente(inv.datosPaciente);
-    await aprobarInvitacion(inv.id);
-    return NextResponse.json({ data: { pacienteId }, mensaje: 'Paciente creado correctamente' });
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
-  }
-}
+export const PUT = manejarErrores(async (_req: NextRequest, ctx: Contexto) => {
+  const inv = await invitacionDe(ctx);
+  if (inv.estado === 'aprobado') throw conflicto('Esta invitación ya fue aprobada');
+  if (!inv.datosPaciente) throw datosInvalidos('No hay datos para aprobar');
+
+  // Se vuelve a validar: lo guardado pudo cargarse antes de que existiera el esquema.
+  const datos = validar(esquemaRegistroPaciente, inv.datosPaciente);
+  const pacienteId = await aprobarInvitacion(inv.id, datos);
+  if (!pacienteId) throw conflicto('Esta invitación ya fue aprobada');
+
+  return ok({ data: { pacienteId }, mensaje: 'Paciente creado correctamente' });
+}, 'Error al aprobar la invitación');

@@ -5,7 +5,7 @@ import FormularioPresupuesto from '@/components/presupuestos/FormularioPresupues
 
 export default function NuevoPresupuestoPage() {
   return (
-    <PageContainer titulo="Nuevo presupuesto" subtitulo="Agregá tratamientos, prácticas y estudios externos">
+    <PageContainer volver="/presupuestos" titulo="Nuevo presupuesto">
       <FormularioPresupuesto modo="crear" />
     </PageContainer>
   );

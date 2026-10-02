@@ -1,11 +1,6 @@
-import { NextResponse } from 'next/server';
 import { getMovimientos } from '@/lib/firestore/stock';
+import { manejarErrores, ok } from '@/lib/api/respuestas';
 
-export async function GET() {
-  try {
-    const movimientos = await getMovimientos();
-    return NextResponse.json({ items: movimientos });
-  } catch {
-    return NextResponse.json({ error: 'Error al obtener movimientos' }, { status: 500 });
-  }
-}
+export const GET = manejarErrores(async () => {
+  return ok({ items: await getMovimientos() });
+}, 'Error al obtener movimientos');

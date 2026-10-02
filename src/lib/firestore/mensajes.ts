@@ -1,18 +1,13 @@
 import {
   collection, doc, getDocs, addDoc, updateDoc, setDoc,
-  query, orderBy, limit, Timestamp, serverTimestamp, increment,
+  query, orderBy, limit, serverTimestamp, increment,
 } from 'firebase/firestore';
 import { getFirebaseDb } from '../firebase';
+import { toIso } from './repository';
 import type { MensajeWA, ConversacionWA, PrioridadMensaje } from '../types';
 
 const CONV = 'conversaciones_wa';
 
-function toIso(ts: unknown): string {
-  if (!ts) return new Date().toISOString();
-  if (ts instanceof Timestamp) return ts.toDate().toISOString();
-  if (typeof ts === 'string') return ts;
-  return new Date().toISOString();
-}
 
 function prioridadDesdeUrgencia(urgencia?: string): PrioridadMensaje {
   if (urgencia === 'alta') return 'urgente';
@@ -78,13 +73,30 @@ export async function guardarMensajeSaliente(telefono: string, cuerpo: string): 
     creadoEn: serverTimestamp(),
   });
   await setDoc(doc(db, CONV, telefono), {
+    // Si el hilo lo abrimos nosotros (un recordatorio), el documento nace acá.
+    telefono,
     ultimoMensaje: `✓ ${cuerpo.slice(0, 60)}`,
     ultimaActividad: serverTimestamp(),
   }, { merge: true });
 }
 
+/** Sólo actualiza conversaciones existentes: leer un teléfono desconocido no crea un hilo vacío. */
 export async function marcarLeidos(telefono: string): Promise<void> {
-  await setDoc(doc(getFirebaseDb(), CONV, telefono), { noLeidos: 0 }, { merge: true });
+  try {
+    await updateDoc(doc(getFirebaseDb(), CONV, telefono), { noLeidos: 0 });
+  } catch (e) {
+    if ((e as { code?: string }).code !== 'not-found') throw e;
+  }
+}
+
+/** Destaca la conversación en la bandeja para que la atienda una persona. */
+export async function marcarUrgente(telefono: string): Promise<void> {
+  await setDoc(doc(getFirebaseDb(), CONV, telefono), {
+    telefono,
+    prioridad: 'urgente',
+    requiereAtencion: true,
+    ultimaAlerta: serverTimestamp(),
+  }, { merge: true });
 }
 
 export async function getConversaciones(): Promise<ConversacionWA[]> {
@@ -94,6 +106,12 @@ export async function getConversaciones(): Promise<ConversacionWA[]> {
   return snap.docs.map((d) => {
     const data = d.data();
     return {
+      // Un hilo abierto por un mensaje saliente no trae todos los campos.
+      telefono: d.id,
+      ultimoMensaje: '',
+      noLeidos: 0,
+      prioridad: 'baja',
+      estado: 'activo',
       ...data,
       id: d.id,
       ultimaActividad: toIso(data.ultimaActividad),

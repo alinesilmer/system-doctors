@@ -4,89 +4,102 @@ import { use, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
-import Card from '@mui/material/Card';
-import Grid from '@mui/material/Grid';
-import Typography from '@mui/material/Typography';
-import Button from '@mui/material/Button';
-import Chip from '@mui/material/Chip';
-import Avatar from '@mui/material/Avatar';
-import Divider from '@mui/material/Divider';
 import Alert from '@mui/material/Alert';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import LinearProgress from '@mui/material/LinearProgress';
-import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
-import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
+import Typography from '@mui/material/Typography';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
+import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
+import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
+import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
+import HealthAndSafetyRoundedIcon from '@mui/icons-material/HealthAndSafetyRounded';
+import PhoneRoundedIcon from '@mui/icons-material/PhoneRounded';
+import MailRoundedIcon from '@mui/icons-material/MailRounded';
+import BadgeRoundedIcon from '@mui/icons-material/BadgeRounded';
+import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
+import CakeRoundedIcon from '@mui/icons-material/CakeRounded';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import PageContainer from '@/components/ui/PageContainer';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import ConfirmarDialogo from '@/components/ui/ConfirmarDialogo';
-import EmptyState from '@/components/ui/EmptyState';
+import AvatarIniciales from '@/components/ui/AvatarIniciales';
+import Etiqueta, { type TonoEtiqueta } from '@/components/ui/Etiqueta';
+import Pildora from '@/components/ui/Pildora';
+import { EstetoscopioIcon } from '@/components/ui/iconos';
+import { redondoClaro, rotulo, tarjeta } from '@/components/ui/estilos';
 import HistoriaClinica from '@/components/pacientes/HistoriaClinica';
 import { usePaciente } from '@/hooks/usePacientes';
 import { useUploadDocument } from '@/hooks/useUploadDocument';
-import { actualizarPaciente } from '@/lib/firestore/pacientes';
+import { useEliminar } from '@/hooks/useEliminar';
+import { pedirApi } from '@/lib/api/cliente';
+import { calcularEdad } from '@/lib/fechas';
+import { formatBytes } from '@/lib/formato';
 import type { DocumentoPaciente } from '@/lib/types';
 
-function Campo({ label, value }: { label: string; value?: string | null }) {
+const HABITOS_LABELS: Record<string, string> = {
+  tabaquismo: 'Tabaquismo',
+  alcohol: 'Alcohol',
+  sedentarismo: 'Sedentarismo',
+  dieta_inadecuada: 'Dieta inadecuada',
+  exceso_pantallas: 'Pantallas / sueño',
+  drogas: 'Otras sustancias',
+};
+
+/** Un dato de contacto: ícono en círculo, valor en fuerte y una palabra que lo nombra. */
+function Dato({ icono, valor, nombre }: { icono: React.ReactNode; valor?: string | null; nombre: string }) {
+  if (!valor) return null;
   return (
-    <Box>
-      <Typography variant="caption" sx={{ color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
-        {label}
-      </Typography>
-      <Typography variant="body2" sx={{ color: value ? '#0F172A' : '#CBD5E1', mt: 0.25 }}>
-        {value || '—'}
-      </Typography>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+      <Box sx={{ width: '2.8rem', height: '2.8rem', flexShrink: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', backgroundColor: 'var(--bg)' }}>
+        {icono}
+      </Box>
+      <Box sx={{ minWidth: 0 }}>
+        <Box sx={{ fontWeight: 800, overflowWrap: 'anywhere' }}>{valor}</Box>
+        <Box sx={{ color: 'var(--soft)', fontSize: '0.85rem' }}>{nombre}</Box>
+      </Box>
     </Box>
   );
 }
 
-const HABITOS_LABELS: Record<string, string> = {
-  tabaquismo: 'Tabaquismo',
-  alcohol: 'Consumo de alcohol',
-  sedentarismo: 'Sedentarismo',
-  dieta_inadecuada: 'Dieta inadecuada',
-  exceso_pantallas: 'Exceso de pantallas / Alteración del sueño',
-  drogas: 'Consumo de otras sustancias',
-};
-
-function formatBytes(bytes?: number): string {
-  if (!bytes) return '';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+/** Un grupo de antecedentes como etiquetas; no se dibuja si está vacío. */
+function Grupo({ titulo, items, tono }: { titulo: string; items?: string[]; tono: TonoEtiqueta }) {
+  if (!items?.length) return null;
+  return (
+    <Box>
+      <Box sx={{ ...rotulo, color: 'var(--soft)', mb: 1 }}>{titulo}</Box>
+      <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+        {items.map((item) => <Etiqueta key={item} tono={tono}>{item}</Etiqueta>)}
+      </Box>
+    </Box>
+  );
 }
+
+const archivo = {
+  width: '8.5rem', aspectRatio: '3 / 4', p: 1, borderRadius: '1.2rem 1.2rem 1.2rem 0.4rem',
+  display: 'grid', placeContent: 'center', justifyItems: 'center', gap: 0.75, textAlign: 'center',
+  fontWeight: 800, fontSize: '0.8rem', textDecoration: 'none', color: 'var(--ink)', backgroundColor: 'var(--bg)',
+  border: 0, cursor: 'pointer', overflowWrap: 'anywhere',
+  transition: 'transform 0.25s var(--spring)',
+  '&:hover': { transform: 'translateY(-5px) rotate(-2deg)' },
+  '& svg': { fontSize: '2.4rem', color: 'var(--pink)' },
+} as const;
 
 export default function PerfilPacientePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const { paciente, cargando, error } = usePaciente(id);
   const [tab, setTab] = useState(0);
-  const [dialogoEliminar, setDialogoEliminar] = useState(false);
-  const [eliminando, setEliminando] = useState(false);
+  const eliminacion = useEliminar<{ id: string }>((o) => `/api/pacientes/${o.id}`, () => router.push('/pacientes'));
   const [documentos, setDocumentos] = useState<DocumentoPaciente[]>([]);
   const [docError, setDocError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { upload, progreso, error: uploadError } = useUploadDocument(id);
 
-  // Sync local docs state with paciente once loaded
+  // Lo recién subido manda sobre lo que trajo la ficha al cargar.
   const docsActuales = documentos.length > 0 ? documentos : (paciente?.documentos ?? []);
-
-  async function handleEliminar() {
-    setEliminando(true);
-    try {
-      await fetch(`/api/pacientes/${id}`, { method: 'DELETE' });
-      router.push('/pacientes');
-    } finally {
-      setEliminando(false);
-    }
-  }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -97,330 +110,138 @@ export default function PerfilPacientePage({ params }: { params: Promise<{ id: s
       const doc = await upload(file);
       if (!doc) return;
       const nuevos = [...docsActuales, doc];
+      await pedirApi(`/api/pacientes/${id}`, { metodo: 'PUT', cuerpo: { documentos: nuevos } });
+      // Recién se muestra cuando quedó asentado en la ficha.
       setDocumentos(nuevos);
-      await actualizarPaciente(id, { documentos: nuevos });
     } catch {
-      setDocError('Error al subir el archivo. Intentá de nuevo.');
+      setDocError('No se pudo subir. Probá de nuevo.');
     }
   }
 
-  if (cargando) return <PageContainer titulo="Perfil del Paciente"><LoadingScreen /></PageContainer>;
+  if (cargando) return <PageContainer titulo="Ficha" volver="/pacientes"><LoadingScreen /></PageContainer>;
   if (error || !paciente) return (
-    <PageContainer titulo="Perfil del Paciente">
+    <PageContainer titulo="Ficha" volver="/pacientes">
       <Alert severity="error">{error ?? 'Paciente no encontrado'}</Alert>
     </PageContainer>
   );
 
-  const nombreCompleto = `${paciente.apellido}, ${paciente.nombre}`;
-  const iniciales = `${paciente.nombre[0] ?? ''}${paciente.apellido[0] ?? ''}`.toUpperCase();
+  const nombre = `${paciente.nombre} ${paciente.apellido}`;
+  const edad = calcularEdad(paciente.fechaNacimiento);
+  const familia = [
+    ...(paciente.antFamiliares?.padre ?? []).map((c) => `Padre: ${c}`),
+    ...(paciente.antFamiliares?.madre ?? []).map((c) => `Madre: ${c}`),
+    ...(paciente.antFamiliares?.hermanos ?? []).map((c) => `Hermanos: ${c}`),
+  ];
 
   const acciones = (
-    <Box sx={{ display: 'flex', gap: 1 }}>
-      <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => router.push('/pacientes')} size="small">
-        Volver
-      </Button>
-      <Link href={`/pacientes/${id}/editar`} style={{ textDecoration: 'none' }}>
-        <Button variant="outlined" startIcon={<EditOutlinedIcon />} size="small">
-          Editar
-        </Button>
-      </Link>
-      <Button
-        variant="outlined"
-        color="error"
-        startIcon={<DeleteOutlinedIcon />}
-        onClick={() => setDialogoEliminar(true)}
-        size="small"
-      >
-        Eliminar
-      </Button>
-    </Box>
+    <>
+      <Tooltip title="Editar">
+        <Box component={Link} href={`/pacientes/${id}/editar`} aria-label="Editar" sx={redondoClaro}><EditRoundedIcon /></Box>
+      </Tooltip>
+      <Tooltip title="Eliminar">
+        <Box component="button" aria-label="Eliminar" onClick={() => eliminacion.pedir({ id })} sx={{ ...redondoClaro, '&:hover': { transform: 'scale(1.1)', backgroundColor: 'var(--bad)', color: 'var(--on-accent)' } }}>
+          <DeleteRoundedIcon />
+        </Box>
+      </Tooltip>
+      <Pildora href={`/turnos/nuevo?pacienteId=${id}`}>Turno</Pildora>
+    </>
   );
 
   return (
-    <PageContainer titulo={nombreCompleto} subtitulo={`DNI: ${paciente.dni}`} acciones={acciones}>
-      {/* Encabezado de perfil */}
-      <Card sx={{ p: 3, mb: 2.5 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-          <Avatar
-            sx={{
-              width: 72,
-              height: 72,
-              backgroundColor: '#2563EB',
-              fontSize: '1.5rem',
-              fontWeight: 700,
-            }}
-          >
-            {iniciales}
-          </Avatar>
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="h2" sx={{ color: '#0F172A', mb: 0.5 }}>
-              {nombreCompleto}
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-              {paciente.grupoSanguineo && (
-                <Chip
-                  label={paciente.grupoSanguineo}
-                  size="small"
-                  sx={{ backgroundColor: '#FEE2E2', color: '#991B1B', fontWeight: 700 }}
-                />
-              )}
-              {paciente.obraSocial && (
-                <Chip
-                  label={paciente.obraSocial}
-                  size="small"
-                  sx={{ backgroundColor: '#EFF6FF', color: '#1D4ED8' }}
-                />
-              )}
-              {paciente.alergias && (
-                <Chip
-                  label={`Alergias: ${paciente.alergias}`}
-                  size="small"
-                  sx={{ backgroundColor: '#FEF3C7', color: '#92400E' }}
-                />
-              )}
+    <PageContainer
+      titulo={nombre}
+      icono={<AvatarIniciales nombre={nombre} tam={5.5} />}
+      volver="/pacientes"
+      acciones={acciones}
+    >
+      {/* Lo que hay que saber de un vistazo: la alergia primero, en el color de atención. */}
+      <Box className="in" style={{ '--n': 1 } as React.CSSProperties} sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3 }}>
+        {paciente.alergias && <Etiqueta tono="acento" icono={<WarningAmberRoundedIcon />}>{paciente.alergias}</Etiqueta>}
+        {paciente.grupoSanguineo && <Etiqueta tono="sun">{paciente.grupoSanguineo}</Etiqueta>}
+        {paciente.obraSocial && <Etiqueta tono="mint" icono={<HealthAndSafetyRoundedIcon />}>{paciente.obraSocial}</Etiqueta>}
+        {edad && <Etiqueta>{edad}</Etiqueta>}
+      </Box>
+
+      <Tabs className="in" style={{ '--n': 2 } as React.CSSProperties} value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2.5 }}>
+        <Tab icon={<EstetoscopioIcon />} iconPosition="start" label="Historia" />
+        <Tab icon={<PersonRoundedIcon />} iconPosition="start" label="Datos" />
+        <Tab icon={<DescriptionRoundedIcon />} iconPosition="start" label="Archivos" />
+      </Tabs>
+
+      <Box className="in" style={{ '--n': 3 } as React.CSSProperties} sx={{ ...tarjeta, p: { xs: 2, sm: 3 }, maxWidth: '52rem' }}>
+        {tab === 0 && <HistoriaClinica pacienteId={id} paciente={paciente} />}
+
+        {tab === 1 && (
+          <Box sx={{ display: 'grid', gap: 3 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(13rem, 1fr))', gap: 2 }}>
+              <Dato icono={<PhoneRoundedIcon />} valor={paciente.telefono} nombre="Teléfono" />
+              <Dato icono={<MailRoundedIcon />} valor={paciente.email} nombre="Email" />
+              <Dato icono={<BadgeRoundedIcon />} valor={paciente.dni} nombre="DNI" />
+              <Dato icono={<CakeRoundedIcon />} valor={paciente.fechaNacimiento} nombre="Nacimiento" />
+              <Dato icono={<HomeRoundedIcon />} valor={paciente.direccion} nombre="Dirección" />
+              <Dato
+                icono={<HealthAndSafetyRoundedIcon />}
+                valor={[paciente.obraSocial, paciente.nroAfiliado].filter(Boolean).join(' · ')}
+                nombre="Cobertura"
+              />
             </Box>
-          </Box>
-          <Button
-            variant="contained"
-            startIcon={<CalendarMonthOutlinedIcon />}
-            onClick={() => router.push(`/turnos/nuevo?pacienteId=${id}`)}
-          >
-            Nuevo turno
-          </Button>
-        </Box>
-      </Card>
-
-      {/* Tabs */}
-      <Card sx={{ overflow: 'hidden' }}>
-        <Tabs
-          value={tab}
-          onChange={(_, v) => setTab(v)}
-          sx={{
-            borderBottom: '1px solid #E2E8F0',
-            px: 2,
-            '& .MuiTab-root': { textTransform: 'none', fontWeight: 500 },
-            '& .Mui-selected': { fontWeight: 600 },
-          }}
-        >
-          <Tab label="Datos personales" />
-          <Tab label="Historia clínica" />
-          <Tab label="Antecedentes" />
-          <Tab label="Documentos" />
-        </Tabs>
-
-        {tab === 0 && (
-          <Box sx={{ p: 3 }}>
-            <Grid container spacing={3}>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Typography variant="h6" sx={{ color: '#64748B', mb: 2 }}>Información personal</Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Campo label="Nombre completo" value={`${paciente.nombre} ${paciente.apellido}`} />
-                  <Campo label="DNI" value={paciente.dni} />
-                  <Campo label="Fecha de nacimiento" value={paciente.fechaNacimiento} />
-                  <Campo label="Sexo biológico" value={paciente.sexo} />
-                </Box>
-              </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Typography variant="h6" sx={{ color: '#64748B', mb: 2 }}>Contacto</Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Campo label="Teléfono" value={paciente.telefono} />
-                  <Campo label="Email" value={paciente.email} />
-                  <Campo label="Dirección" value={paciente.direccion} />
-                </Box>
-              </Grid>
-              <Grid size={12}><Divider sx={{ borderColor: '#F1F5F9' }} /></Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Typography variant="h6" sx={{ color: '#64748B', mb: 2 }}>Cobertura médica</Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Campo label="Obra social / Prepaga" value={paciente.obraSocial} />
-                  <Campo label="Nro. de afiliado" value={paciente.nroAfiliado} />
-                  <Campo label="Grupo sanguíneo" value={paciente.grupoSanguineo} />
-                </Box>
-              </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Typography variant="h6" sx={{ color: '#64748B', mb: 2 }}>Información clínica</Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Campo label="Alergias" value={paciente.alergias} />
-                  <Campo label="Notas" value={paciente.notas} />
-                </Box>
-              </Grid>
-            </Grid>
+            <Grupo titulo="Familia" items={familia} tono="lila" />
+            <Grupo titulo="Cirugías" items={paciente.antPersonales?.cirugias} tono="sun" />
+            <Grupo titulo="Internaciones" items={paciente.antPersonales?.internaciones} tono="sun" />
+            <Grupo titulo="Hábitos" items={paciente.habitos?.items.map((h) => HABITOS_LABELS[h] ?? h)} tono="mint" />
+            {paciente.notas && (
+              <Box>
+                <Box sx={{ ...rotulo, color: 'var(--soft)', mb: 1 }}>Notas</Box>
+                <Typography sx={{ whiteSpace: 'pre-wrap' }}>{paciente.notas}</Typography>
+              </Box>
+            )}
           </Box>
         )}
-
-        {tab === 1 && <HistoriaClinica pacienteId={id} paciente={paciente} />}
 
         {tab === 2 && (
-          <Box sx={{ p: 3 }}>
-            <Grid container spacing={3}>
-              {/* Familiares */}
-              <Grid size={12}>
-                <Typography variant="h6" sx={{ color: '#64748B', mb: 2 }}>Antecedentes familiares</Typography>
-                <Grid container spacing={2}>
-                  {(['padre', 'madre', 'hermanos'] as const).map((miembro) => {
-                    const items = paciente.antFamiliares?.[miembro] ?? [];
-                    return (
-                      <Grid key={miembro} size={{ xs: 12, md: 4 }}>
-                        <Typography variant="caption" sx={{ color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
-                          {miembro.charAt(0).toUpperCase() + miembro.slice(1)}
-                        </Typography>
-                        {items.length > 0 ? (
-                          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
-                            {items.map((c) => (
-                              <Chip key={c} label={c} size="small" sx={{ backgroundColor: '#EDE9FE', color: '#6D28D9' }} />
-                            ))}
-                          </Box>
-                        ) : (
-                          <Typography variant="body2" sx={{ color: '#CBD5E1', mt: 0.5 }}>—</Typography>
-                        )}
-                      </Grid>
-                    );
-                  })}
-                </Grid>
-              </Grid>
-
-              <Grid size={12}><Divider sx={{ borderColor: '#F1F5F9' }} /></Grid>
-
-              {/* Personales */}
-              <Grid size={12}>
-                <Typography variant="h6" sx={{ color: '#64748B', mb: 2 }}>Antecedentes personales / quirúrgicos</Typography>
-                <Grid container spacing={2}>
-                  {(['cirugias', 'internaciones'] as const).map((tipo) => {
-                    const items = paciente.antPersonales?.[tipo] ?? [];
-                    const label = tipo === 'cirugias' ? 'Cirugías' : 'Internaciones';
-                    return (
-                      <Grid key={tipo} size={{ xs: 12, md: 6 }}>
-                        <Typography variant="caption" sx={{ color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
-                          {label}
-                        </Typography>
-                        {items.length > 0 ? (
-                          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
-                            {items.map((c) => (
-                              <Chip key={c} label={c} size="small" sx={{ backgroundColor: '#FEE2E2', color: '#991B1B' }} />
-                            ))}
-                          </Box>
-                        ) : (
-                          <Typography variant="body2" sx={{ color: '#CBD5E1', mt: 0.5 }}>—</Typography>
-                        )}
-                      </Grid>
-                    );
-                  })}
-                </Grid>
-              </Grid>
-
-              <Grid size={12}><Divider sx={{ borderColor: '#F1F5F9' }} /></Grid>
-
-              {/* Hábitos */}
-              <Grid size={12}>
-                <Typography variant="h6" sx={{ color: '#64748B', mb: 2 }}>Hábitos</Typography>
-                {(paciente.habitos?.items ?? []).length > 0 ? (
-                  <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                    {paciente.habitos!.items.map((h) => (
-                      <Chip
-                        key={h}
-                        label={HABITOS_LABELS[h] ?? h}
-                        size="small"
-                        sx={{ backgroundColor: '#D1FAE5', color: '#065F46' }}
-                      />
-                    ))}
+          <Box>
+            {(docError || uploadError) && <Alert severity="error" sx={{ mb: 2 }}>{docError ?? uploadError}</Alert>}
+            {progreso !== null && <LinearProgress variant="determinate" value={progreso} sx={{ mb: 2 }} />}
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              {docsActuales.map((doc) => (
+                <Tooltip key={doc.id} title={`${new Date(doc.subidoEn).toLocaleDateString('es-AR')}${doc.tamanio ? ` · ${formatBytes(doc.tamanio)}` : ''}`}>
+                  <Box component="a" href={doc.url} target="_blank" rel="noopener noreferrer" sx={archivo}>
+                    <DescriptionRoundedIcon />
+                    {doc.nombre}
                   </Box>
-                ) : (
-                  <Typography variant="body2" sx={{ color: '#CBD5E1' }}>Sin hábitos registrados</Typography>
-                )}
-              </Grid>
-            </Grid>
-          </Box>
-        )}
-
-        {tab === 3 && (
-          <Box sx={{ p: 3 }}>
-            {/* Upload area */}
-            <Box sx={{ mb: 2.5, display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Button
-                variant="outlined"
-                startIcon={<UploadFileOutlinedIcon />}
+                </Tooltip>
+              ))}
+              <Box
+                component="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={progreso !== null}
+                sx={{ ...archivo, backgroundColor: 'transparent', border: '3px dashed var(--line)', color: 'var(--soft)', '& svg': { fontSize: '2.4rem' } }}
               >
-                Subir documento
-              </Button>
-              <Typography variant="caption" sx={{ color: '#94A3B8' }}>
-                PDF, imágenes — máx. 10 MB
-              </Typography>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="application/pdf,image/*"
-                style={{ display: 'none' }}
-                onChange={handleFileChange}
-              />
+                <AddRoundedIcon />
+                Subir
+              </Box>
             </Box>
-
-            {progreso !== null && (
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="caption" sx={{ color: '#64748B', mb: 0.5, display: 'block' }}>
-                  Subiendo... {progreso}%
-                </Typography>
-                <LinearProgress variant="determinate" value={progreso} sx={{ borderRadius: 4 }} />
-              </Box>
-            )}
-
-            {(docError || uploadError) && (
-              <Alert severity="error" sx={{ mb: 2 }}>{docError ?? uploadError}</Alert>
-            )}
-
-            {docsActuales.length === 0 ? (
-              <EmptyState
-                titulo="Sin documentos"
-                descripcion="Subí PDFs o imágenes del paciente (estudios, recetas, informes)"
-                icono={<InsertDriveFileOutlinedIcon sx={{ fontSize: 'inherit' }} />}
-              />
-            ) : (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                {docsActuales.map((doc) => (
-                  <Box
-                    key={doc.id}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 2,
-                      p: 2,
-                      border: '1px solid #E2E8F0',
-                      borderRadius: 2,
-                      '&:hover': { backgroundColor: '#F8FAFC' },
-                    }}
-                  >
-                    <InsertDriveFileOutlinedIcon sx={{ color: '#94A3B8', fontSize: 24 }} />
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 500, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {doc.nombre}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#94A3B8' }}>
-                        {new Date(doc.subidoEn).toLocaleDateString('es-AR')}
-                        {doc.tamanio ? ` · ${formatBytes(doc.tamanio)}` : ''}
-                      </Typography>
-                    </Box>
-                    <Tooltip title="Abrir">
-                      <IconButton size="small" component="a" href={doc.url} target="_blank" rel="noopener noreferrer">
-                        <OpenInNewIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                ))}
-              </Box>
-            )}
+            <Box sx={{ color: 'var(--soft)', fontSize: '0.85rem', mt: 2 }}>PDF o imagen · 10 MB</Box>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf,image/jpeg,image/png,image/webp"
+              style={{ display: 'none' }}
+              onChange={handleFileChange}
+            />
           </Box>
         )}
-      </Card>
+      </Box>
 
       <ConfirmarDialogo
-        abierto={dialogoEliminar}
+        abierto={!!eliminacion.objetivo}
         titulo="Eliminar paciente"
-        descripcion={`¿Estás seguro de que deseas eliminar a ${nombreCompleto}? Esta acción no se puede deshacer.`}
+        descripcion={`¿Eliminar a ${nombre}? No se puede deshacer.`}
         textoConfirmar="Eliminar"
-        cargando={eliminando}
-        onConfirmar={handleEliminar}
-        onCancelar={() => setDialogoEliminar(false)}
+        cargando={eliminacion.eliminando}
+        error={eliminacion.error}
+        onConfirmar={eliminacion.confirmar}
+        onCancelar={eliminacion.cancelar}
       />
     </PageContainer>
   );

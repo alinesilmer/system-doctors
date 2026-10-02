@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useSyncExternalStore } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
@@ -16,6 +16,7 @@ import MicOffIcon from '@mui/icons-material/MicOff';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutlined';
 import NoteAddOutlinedIcon from '@mui/icons-material/NoteAddOutlined';
+import { pedirApi } from '@/lib/api/cliente';
 import type { Paciente } from '@/lib/types';
 
 interface Mensaje {
@@ -69,6 +70,11 @@ declare global {
   }
 }
 
+/** La disponibilidad de dictado no cambia durante la sesión: nada a lo que suscribirse. */
+const suscribirseNunca = () => () => {};
+const hayReconocimientoDeVoz = () =>
+  !!(window.SpeechRecognition ?? window.webkitSpeechRecognition);
+
 export default function ChatIA({ paciente, onGuardarNota }: Props) {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [input, setInput] = useState('');
@@ -76,14 +82,10 @@ export default function ChatIA({ paciente, onGuardarNota }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [grabando, setGrabando] = useState(false);
   const [transcripcionParcial, setTranscripcionParcial] = useState('');
-  const [vozDisponible, setVozDisponible] = useState(false);
+
   const reconocimientoRef = useRef<ISpeechRecognition | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
-    setVozDisponible(!!SR);
-  }, []);
+  const vozDisponible = useSyncExternalStore(suscribirseNunca, hayReconocimientoDeVoz, () => false);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -104,13 +106,11 @@ export default function ChatIA({ paciente, onGuardarNota }: Props) {
     setError(null);
 
     try {
-      const res = await fetch('/api/ai/consulta', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mensajes: nuevosMensajes, contexto }),
+      const data = await pedirApi<{ respuesta: string; esNota: boolean }>('/api/ai/consulta', {
+        metodo: 'POST',
+        // Sólo lo que el servidor necesita: rol y texto de cada turno.
+        cuerpo: { mensajes: nuevosMensajes.map(({ role, content }) => ({ role, content })), contexto },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Error desconocido');
       setMensajes((prev) => [
         ...prev,
         { role: 'assistant', content: limpiarMarcadores(data.respuesta), esNota: data.esNota },
@@ -161,20 +161,20 @@ export default function ChatIA({ paciente, onGuardarNota }: Props) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 400 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1.5, borderBottom: '1px solid #E2E8F0', backgroundColor: '#F8FAFC' }}>
-        <SmartToyOutlinedIcon sx={{ color: '#7C3AED', fontSize: 20 }} />
-        <Typography variant="body2" sx={{ fontWeight: 700, color: '#0F172A' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1.5, borderBottom: '1px solid var(--line)', backgroundColor: 'var(--bg)' }}>
+        <SmartToyOutlinedIcon sx={{ color: 'var(--ink)', fontSize: 20 }} />
+        <Typography variant="body2" sx={{ fontWeight: 700, color: 'var(--ink)' }}>
           Asistente IA
         </Typography>
-        <Chip label="Gemini 1.5 Flash · gratuito" size="small" sx={{ ml: 'auto', fontSize: '0.6rem', backgroundColor: '#F3F0FF', color: '#7C3AED' }} />
+        <Chip label="Gemini 1.5 Flash · gratuito" size="small" sx={{ ml: 'auto', fontSize: '0.6rem', backgroundColor: 'var(--lila)', color: 'var(--ink)' }} />
       </Box>
 
       {/* Messages */}
       <Box ref={scrollRef} sx={{ flex: 1, overflowY: 'auto', px: 2, py: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         {mensajes.length === 0 && (
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, py: 4, textAlign: 'center' }}>
-            <SmartToyOutlinedIcon sx={{ fontSize: 40, color: '#C4B5FD' }} />
-            <Typography variant="body2" sx={{ color: '#64748B', maxWidth: 300 }}>
+            <SmartToyOutlinedIcon sx={{ fontSize: 40, color: 'var(--lila)' }} />
+            <Typography variant="body2" sx={{ color: 'var(--soft)', maxWidth: 300 }}>
               Dictá una consulta, describí síntomas o pedile al asistente que genere una nota clínica.
             </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, justifyContent: 'center' }}>
@@ -185,7 +185,7 @@ export default function ChatIA({ paciente, onGuardarNota }: Props) {
                   size="small"
                   variant="outlined"
                   onClick={() => enviar(s)}
-                  sx={{ cursor: 'pointer', fontSize: '0.7rem', '&:hover': { backgroundColor: '#F3F0FF', borderColor: '#7C3AED', color: '#7C3AED' } }}
+                  sx={{ cursor: 'pointer', fontSize: '0.7rem', '&:hover': { backgroundColor: 'var(--lila)', borderColor: 'var(--ink)', color: 'var(--ink)' } }}
                 />
               ))}
             </Box>
@@ -196,22 +196,22 @@ export default function ChatIA({ paciente, onGuardarNota }: Props) {
           <Box key={i} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', flexDirection: m.role === 'user' ? 'row-reverse' : 'row' }}>
             <Box sx={{
               width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-              backgroundColor: m.role === 'user' ? '#2563EB' : '#7C3AED',
+              backgroundColor: m.role === 'user' ? 'var(--pink)' : 'var(--ink)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               {m.role === 'user'
-                ? <PersonOutlineIcon sx={{ fontSize: 16, color: '#fff' }} />
-                : <SmartToyOutlinedIcon sx={{ fontSize: 16, color: '#fff' }} />
+                ? <PersonOutlineIcon sx={{ fontSize: 16, color: 'var(--on-accent)' }} />
+                : <SmartToyOutlinedIcon sx={{ fontSize: 16, color: 'var(--on-accent)' }} />
               }
             </Box>
             <Box sx={{ maxWidth: '85%' }}>
               <Box sx={{
                 px: 1.5, py: 1,
-                backgroundColor: m.role === 'user' ? '#EFF6FF' : '#FAFAFA',
-                border: `1px solid ${m.role === 'user' ? '#BFDBFE' : '#E2E8F0'}`,
+                backgroundColor: m.role === 'user' ? 'var(--mint)' : 'var(--bg)',
+                border: `1px solid ${m.role === 'user' ? 'var(--mint)' : 'var(--line)'}`,
                 borderRadius: m.role === 'user' ? '12px 4px 12px 12px' : '4px 12px 12px 12px',
               }}>
-                <Typography variant="body2" sx={{ color: '#1E293B', whiteSpace: 'pre-wrap', lineHeight: 1.65, fontSize: '0.82rem' }}>
+                <Typography variant="body2" sx={{ color: 'var(--ink)', whiteSpace: 'pre-wrap', lineHeight: 1.65, fontSize: '0.82rem' }}>
                   {m.content}
                 </Typography>
               </Box>
@@ -220,7 +220,7 @@ export default function ChatIA({ paciente, onGuardarNota }: Props) {
                   size="small"
                   startIcon={<NoteAddOutlinedIcon />}
                   variant="contained"
-                  sx={{ mt: 0.75, backgroundColor: '#7C3AED', '&:hover': { backgroundColor: '#6D28D9' }, fontSize: '0.72rem' }}
+                  sx={{ mt: 0.75, backgroundColor: 'var(--ink)', '&:hover': { backgroundColor: 'var(--ink)' }, fontSize: '0.72rem' }}
                   onClick={() => onGuardarNota({ titulo: extraerTituloNota(m.content), contenido: m.content })}
                 >
                   Agregar a historia clínica
@@ -232,12 +232,12 @@ export default function ChatIA({ paciente, onGuardarNota }: Props) {
 
         {cargando && (
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-            <Box sx={{ width: 28, height: 28, borderRadius: '50%', backgroundColor: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <SmartToyOutlinedIcon sx={{ fontSize: 16, color: '#fff' }} />
+            <Box sx={{ width: 28, height: 28, borderRadius: '50%', backgroundColor: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <SmartToyOutlinedIcon sx={{ fontSize: 16, color: 'var(--on-accent)' }} />
             </Box>
-            <Box sx={{ px: 1.5, py: 1, backgroundColor: '#FAFAFA', border: '1px solid #E2E8F0', borderRadius: '4px 12px 12px 12px', display: 'flex', gap: 0.5, alignItems: 'center' }}>
-              <CircularProgress size={12} sx={{ color: '#7C3AED' }} />
-              <Typography variant="caption" sx={{ color: '#94A3B8' }}>Pensando…</Typography>
+            <Box sx={{ px: 1.5, py: 1, backgroundColor: 'var(--bg)', border: '1px solid var(--line)', borderRadius: '4px 12px 12px 12px', display: 'flex', gap: 0.5, alignItems: 'center' }}>
+              <CircularProgress size={12} sx={{ color: 'var(--ink)' }} />
+              <Typography variant="caption" sx={{ color: 'var(--soft)' }}>Pensando…</Typography>
             </Box>
           </Box>
         )}
@@ -246,9 +246,9 @@ export default function ChatIA({ paciente, onGuardarNota }: Props) {
       {error && <Alert severity="error" sx={{ mx: 2, mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
 
       {/* Input */}
-      <Box sx={{ px: 2, py: 1.5, borderTop: '1px solid #E2E8F0', backgroundColor: '#FAFAFA' }}>
+      <Box sx={{ px: 2, py: 1.5, borderTop: '1px solid var(--line)', backgroundColor: 'var(--bg)' }}>
         {transcripcionParcial && (
-          <Typography variant="caption" sx={{ color: '#7C3AED', display: 'block', mb: 0.75, fontStyle: 'italic' }}>
+          <Typography variant="caption" sx={{ color: 'var(--ink)', display: 'block', mb: 0.75, fontStyle: 'italic' }}>
             🎙 {transcripcionParcial}…
           </Typography>
         )}
@@ -267,16 +267,16 @@ export default function ChatIA({ paciente, onGuardarNota }: Props) {
                 enviar(input);
               }
             }}
-            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5, backgroundColor: '#fff' } }}
+            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5, backgroundColor: 'var(--card)' } }}
           />
           {vozDisponible && (
             <Tooltip title={grabando ? 'Detener grabación' : 'Grabar voz (español)'}>
               <IconButton
                 onClick={grabando ? detenerVoz : iniciarVoz}
                 sx={{
-                  color: grabando ? '#EF4444' : '#7C3AED',
-                  backgroundColor: grabando ? '#FEE2E2' : '#F3F0FF',
-                  '&:hover': { backgroundColor: grabando ? '#FECACA' : '#EDE9FE' },
+                  color: grabando ? 'var(--bad)' : 'var(--ink)',
+                  backgroundColor: grabando ? 'color-mix(in srgb, var(--bad) 16%, transparent)' : 'var(--lila)',
+                  '&:hover': { backgroundColor: grabando ? 'color-mix(in srgb, var(--bad) 16%, transparent)' : 'var(--lila)' },
                   animation: grabando ? 'pulse 1.5s infinite' : 'none',
                   '@keyframes pulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.6 } },
                 }}
@@ -288,13 +288,13 @@ export default function ChatIA({ paciente, onGuardarNota }: Props) {
           <IconButton
             onClick={() => enviar(input)}
             disabled={!input.trim() || cargando}
-            sx={{ color: '#fff', backgroundColor: '#2563EB', '&:hover': { backgroundColor: '#1D4ED8' }, '&:disabled': { backgroundColor: '#E2E8F0' } }}
+            sx={{ color: 'var(--on-accent)', backgroundColor: 'var(--pink)', '&:hover': { backgroundColor: 'var(--pink)' }, '&:disabled': { backgroundColor: 'var(--line)' } }}
           >
             <SendIcon fontSize="small" />
           </IconButton>
         </Box>
         {vozDisponible && (
-          <Typography variant="caption" sx={{ color: '#94A3B8', mt: 0.5, display: 'block' }}>
+          <Typography variant="caption" sx={{ color: 'var(--soft)', mt: 0.5, display: 'block' }}>
             Enter para enviar · Shift+Enter nueva línea · El micrófono graba en español
           </Typography>
         )}

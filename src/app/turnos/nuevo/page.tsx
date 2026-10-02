@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: 'Nuevo Turno' };
 
 export default function NuevoTurnoPage() {
   return (
-    <PageContainer titulo="Nuevo Turno" subtitulo="Agendá un nuevo turno">
+    <PageContainer volver="/turnos" titulo="Nuevo turno">
       <Suspense fallback={<LoadingScreen />}>
         <FormularioTurno modo="crear" />
       </Suspense>

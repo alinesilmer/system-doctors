@@ -1,83 +1,38 @@
 import {
-  collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc,
-  query, orderBy, where, Timestamp, serverTimestamp,
+  collection, doc, getDocs, addDoc, query, orderBy, serverTimestamp,
 } from 'firebase/firestore';
 import { getFirebaseDb } from '../firebase';
+import { crearRepositorio, toIso } from './repository';
 import type { Paciente, EntradaHistoriaClinica } from '../types';
 
-const COL = 'pacientes';
+export const COL_PACIENTES = 'pacientes';
 const HC_COL = 'historiaClinica';
 
-function toIso(ts: unknown): string {
-  if (!ts) return new Date().toISOString();
-  if (ts instanceof Timestamp) return ts.toDate().toISOString();
-  if (typeof ts === 'string') return ts;
-  return new Date().toISOString();
-}
+export const repositorioPacientes = crearRepositorio<Paciente>(COL_PACIENTES, 'apellido');
 
-export async function getPacientes(): Promise<Paciente[]> {
-  const snap = await getDocs(query(collection(getFirebaseDb(), COL), orderBy('apellido')));
-  return snap.docs.map((d) => {
-    const data = d.data();
-    return {
-      ...data,
-      id: d.id,
-      creadoEn: toIso(data.creadoEn),
-      actualizadoEn: toIso(data.actualizadoEn),
-    } as Paciente;
-  });
-}
+export const getPaciente = (id: string) => repositorioPacientes.obtener(id);
 
-export async function getPaciente(id: string): Promise<Paciente | null> {
-  const snap = await getDoc(doc(getFirebaseDb(), COL, id));
-  if (!snap.exists()) return null;
-  const data = snap.data();
-  return {
-    ...data,
-    id: snap.id,
-    creadoEn: toIso(data.creadoEn),
-    actualizadoEn: toIso(data.actualizadoEn),
-  } as Paciente;
-}
+// ─── Historia clínica (subcolección de cada paciente) ────────────────────────
 
-export async function crearPaciente(datos: Omit<Paciente, 'id' | 'creadoEn' | 'actualizadoEn'>): Promise<string> {
-  const ref = await addDoc(collection(getFirebaseDb(), COL), {
-    ...datos,
-    creadoEn: serverTimestamp(),
-    actualizadoEn: serverTimestamp(),
-  });
-  return ref.id;
-}
-
-export async function actualizarPaciente(id: string, datos: Partial<Paciente>): Promise<void> {
-  const { id: _id, creadoEn: _c, ...rest } = datos as Paciente;
-  await updateDoc(doc(getFirebaseDb(), COL, id), {
-    ...rest,
-    actualizadoEn: serverTimestamp(),
-  });
-}
-
-export async function eliminarPaciente(id: string): Promise<void> {
-  await deleteDoc(doc(getFirebaseDb(), COL, id));
-}
+const historiaClinica = (pacienteId: string) =>
+  collection(doc(getFirebaseDb(), COL_PACIENTES, pacienteId), HC_COL);
 
 export async function getHistoriaClinica(pacienteId: string): Promise<EntradaHistoriaClinica[]> {
-  const snap = await getDocs(
-    query(collection(getFirebaseDb(), COL, pacienteId, HC_COL), orderBy('fecha', 'desc'))
-  );
-  return snap.docs.map((d) => {
-    const data = d.data();
-    return { ...data, id: d.id, creadoEn: toIso(data.creadoEn) } as EntradaHistoriaClinica;
-  });
+  const snap = await getDocs(query(historiaClinica(pacienteId), orderBy('fecha', 'desc')));
+  return snap.docs.map((d) => ({
+    ...d.data(),
+    id: d.id,
+    creadoEn: toIso(d.data().creadoEn),
+  } as EntradaHistoriaClinica));
 }
 
 export async function crearEntradaHistoriaClinica(
   pacienteId: string,
-  datos: Omit<EntradaHistoriaClinica, 'id' | 'creadoEn'>
+  datos: Omit<EntradaHistoriaClinica, 'id' | 'creadoEn'>,
 ): Promise<string> {
-  const ref = await addDoc(collection(getFirebaseDb(), COL, pacienteId, HC_COL), {
+  const creado = await addDoc(historiaClinica(pacienteId), {
     ...datos,
     creadoEn: serverTimestamp(),
   });
-  return ref.id;
+  return creado.id;
 }

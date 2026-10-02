@@ -27,11 +27,11 @@ const TIPO_LABELS: Record<TipoDocumento, string> = {
 };
 
 const TIPO_COLORS: Record<TipoDocumento, { bg: string; color: string }> = {
-  consentimiento: { bg: '#DBEAFE', color: '#1D4ED8' },
-  informacion:    { bg: '#D1FAE5', color: '#065F46' },
-  protocolo:      { bg: '#EDE9FE', color: '#5B21B6' },
-  formulario:     { bg: '#FEF3C7', color: '#92400E' },
-  otro:           { bg: '#F1F5F9', color: '#475569' },
+  consentimiento: { bg: 'var(--mint)', color: 'var(--pink)' },
+  informacion:    { bg: 'color-mix(in srgb, var(--ok) 18%, transparent)', color: 'var(--ok)' },
+  protocolo:      { bg: 'var(--lila)', color: 'var(--ink)' },
+  formulario:     { bg: 'var(--sun)', color: 'var(--warn)' },
+  otro:           { bg: 'var(--bg)', color: 'var(--soft)' },
 };
 
 export default function VerDocumentoPage({ params }: { params: Promise<{ id: string }> }) {
@@ -56,7 +56,7 @@ export default function VerDocumentoPage({ params }: { params: Promise<{ id: str
   );
 
   return (
-    <PageContainer titulo={documento.titulo} subtitulo="Vista previa del documento" acciones={acciones}>
+    <PageContainer volver="/documentos" titulo={documento.titulo} acciones={acciones}>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, maxWidth: 900 }}>
         <Card>
           <CardContent sx={{ p: 3 }}>
@@ -81,20 +81,20 @@ export default function VerDocumentoPage({ params }: { params: Promise<{ id: str
                     label={documento.activo ? 'Activo' : 'Inactivo'}
                     size="small"
                     sx={{
-                      backgroundColor: documento.activo ? '#D1FAE5' : '#F1F5F9',
-                      color: documento.activo ? '#065F46' : '#94A3B8',
+                      backgroundColor: documento.activo ? 'color-mix(in srgb, var(--ok) 18%, transparent)' : 'var(--bg)',
+                      color: documento.activo ? 'var(--ok)' : 'var(--soft)',
                       fontWeight: 600, fontSize: '0.7rem',
                     }}
                   />
                 </Box>
                 {documento.descripcion && (
-                  <Typography variant="body2" sx={{ color: '#64748B' }}>
+                  <Typography variant="body2" sx={{ color: 'var(--soft)' }}>
                     {documento.descripcion}
                   </Typography>
                 )}
               </Box>
               <Box sx={{ textAlign: 'right' }}>
-                <Typography variant="caption" sx={{ color: '#94A3B8' }}>
+                <Typography variant="caption" sx={{ color: 'var(--soft)' }}>
                   Creado el {new Date(documento.creadoEn).toLocaleDateString('es-AR')}
                 </Typography>
               </Box>
@@ -112,7 +112,7 @@ export default function VerDocumentoPage({ params }: { params: Promise<{ id: str
 
         <Card>
           <CardContent sx={{ p: 3 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0F172A', mb: 2 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--ink)', mb: 2 }}>
               Contenido
             </Typography>
             <Divider sx={{ mb: 2 }} />
@@ -122,7 +122,7 @@ export default function VerDocumentoPage({ params }: { params: Promise<{ id: str
                 fontFamily: 'inherit',
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
-                color: '#1E293B',
+                color: 'var(--ink)',
                 lineHeight: 1.8,
                 fontSize: '0.9rem',
               }}

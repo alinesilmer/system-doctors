@@ -1,5 +1,6 @@
 'use client';
 
+import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
@@ -15,6 +16,8 @@ interface ConfirmarDialogoProps {
   descripcion: string;
   textoConfirmar?: string;
   cargando?: boolean;
+  /** Fallo de la acción confirmada; se muestra sin cerrar el diálogo. */
+  error?: string | null;
   onConfirmar: () => void;
   onCancelar: () => void;
 }
@@ -25,6 +28,7 @@ export default function ConfirmarDialogo({
   descripcion,
   textoConfirmar = 'Confirmar',
   cargando = false,
+  error,
   onConfirmar,
   onCancelar,
 }: ConfirmarDialogoProps) {
@@ -34,27 +38,27 @@ export default function ConfirmarDialogo({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Box
             sx={{
-              width: 40,
-              height: 40,
-              borderRadius: '10px',
-              backgroundColor: '#FEF3C7',
+              width: 48,
+              height: 48,
+              borderRadius: '50%',
+              backgroundColor: 'var(--sun)',
+              color: 'var(--on-tint)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
             }}
           >
-            <WarningAmberOutlinedIcon sx={{ color: '#D97706', fontSize: 22 }} />
+            <WarningAmberOutlinedIcon sx={{ fontSize: 26, animation: 'wobble 1.5s ease-in-out infinite' }} />
           </Box>
-          <Typography variant="h5" sx={{ color: '#0F172A' }}>
-            {titulo}
-          </Typography>
+          {titulo}
         </Box>
       </DialogTitle>
       <DialogContent>
-        <Typography variant="body2" sx={{ color: '#64748B', mt: 0.5 }}>
+        <Typography variant="body2" sx={{ color: 'var(--soft)', mt: 0.5 }}>
           {descripcion}
         </Typography>
+        {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
         <Button variant="outlined" onClick={onCancelar} disabled={cargando} sx={{ flex: 1 }}>

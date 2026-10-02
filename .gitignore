@@ -69,6 +69,7 @@ PANORAMA.md
 # workflow exports
 *.json
 !package.json
+!package-lock.json
 !tsconfig.json
 !next.config*.json
 .start-n8n.sh

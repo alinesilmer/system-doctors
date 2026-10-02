@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: 'Nuevo Paciente' };
 
 export default function NuevoPacientePage() {
   return (
-    <PageContainer titulo="Nuevo Paciente" subtitulo="Completá los datos del paciente">
+    <PageContainer volver="/pacientes" titulo="Nuevo paciente">
       <FormularioPaciente modo="crear" />
     </PageContainer>
   );

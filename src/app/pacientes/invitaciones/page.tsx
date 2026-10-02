@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -20,54 +20,44 @@ import AddIcon from '@mui/icons-material/Add';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 import PersonAddOutlinedIcon from '@mui/icons-material/PersonAddOutlined';
+import { pedirApi } from '@/lib/api/cliente';
 import PageContainer from '@/components/ui/PageContainer';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import type { FormularioInvitacion } from '@/lib/types';
+import { useColeccion } from '@/hooks/useRecurso';
 
 function formatFecha(iso: string) {
   return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 const ESTADO_CONFIG = {
-  pendiente:  { label: 'Esperando al paciente', color: '#CA8A04', bg: '#FEF9C3' },
-  completado: { label: 'Datos recibidos',        color: '#7C3AED', bg: '#F3F0FF' },
-  aprobado:   { label: 'Paciente creado',         color: '#059669', bg: '#D1FAE5' },
+  pendiente:  { label: 'Esperando al paciente', color: 'var(--warn)', bg: 'var(--sun)' },
+  completado: { label: 'Datos recibidos',        color: 'var(--ink)', bg: 'var(--lila)' },
+  aprobado:   { label: 'Paciente creado',         color: 'var(--ok)', bg: 'color-mix(in srgb, var(--ok) 18%, transparent)' },
 };
 
 export default function InvitacionesPage() {
   const router = useRouter();
-  const [invitaciones, setInvitaciones] = useState<FormularioInvitacion[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    items: invitaciones, cargando, error: errorCarga, recargar: cargar,
+  } = useColeccion<FormularioInvitacion>('/api/invitaciones', 'Error al cargar invitaciones');
+  const [errorAccion, setErrorAccion] = useState<string | null>(null);
+  const error = errorAccion ?? errorCarga;
   const [generando, setGenerando] = useState(false);
   const [linkDialogo, setLinkDialogo] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
   const [aprobando, setAprobando] = useState<string | null>(null);
   const [detalleDialogo, setDetalleDialogo] = useState<FormularioInvitacion | null>(null);
 
-  const cargar = useCallback(async () => {
-    setCargando(true);
-    try {
-      const res = await fetch('/api/invitaciones');
-      const data = await res.json();
-      setInvitaciones(data.items ?? []);
-    } catch { setError('Error al cargar invitaciones'); }
-    finally { setCargando(false); }
-  }, []);
-
-  useEffect(() => { cargar(); }, [cargar]);
-
   async function generarLink() {
     setGenerando(true);
     try {
-      const res = await fetch('/api/invitaciones', { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await pedirApi<{ data: { token: string } }>('/api/invitaciones', { metodo: 'POST' });
       const url = `${window.location.origin}/registro-paciente/${data.data.token}`;
       setLinkDialogo(url);
       cargar();
     } catch (e) {
-      setError((e as Error).message);
+      setErrorAccion((e as Error).message);
     } finally {
       setGenerando(false);
     }
@@ -76,14 +66,12 @@ export default function InvitacionesPage() {
   async function aprobar(inv: FormularioInvitacion) {
     setAprobando(inv.id);
     try {
-      const res = await fetch(`/api/invitaciones/${inv.token}`, { method: 'PUT' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await pedirApi<{ data?: { pacienteId?: string } }>(`/api/invitaciones/${inv.token}`, { metodo: 'PUT' });
       cargar();
       setDetalleDialogo(null);
       if (data.data?.pacienteId) router.push(`/pacientes/${data.data.pacienteId}`);
     } catch (e) {
-      setError((e as Error).message);
+      setErrorAccion((e as Error).message);
     } finally {
       setAprobando(null);
     }
@@ -102,8 +90,8 @@ export default function InvitacionesPage() {
   );
 
   return (
-    <PageContainer titulo="Invitaciones de registro" subtitulo="Enviá un enlace al paciente para que complete sus datos" acciones={acciones}>
-      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+    <PageContainer volver="/mas" titulo="Invitaciones" acciones={acciones}>
+      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setErrorAccion(null)}>{error}</Alert>}
 
       <Alert severity="info" sx={{ mb: 2 }}>
         Generá un enlace único y enviáselo al paciente por <strong>WhatsApp, email o SMS</strong>. El paciente completa el formulario desde su celular y vos aprobás sus datos acá.
@@ -112,8 +100,8 @@ export default function InvitacionesPage() {
       <Card sx={{ overflow: 'hidden' }}>
         {cargando ? <LoadingScreen mensaje="Cargando invitaciones..." /> : invitaciones.length === 0 ? (
           <Box sx={{ p: 6, textAlign: 'center' }}>
-            <PersonAddOutlinedIcon sx={{ fontSize: 48, color: '#CBD5E1', mb: 1 }} />
-            <Typography variant="body2" sx={{ color: '#94A3B8' }}>
+            <PersonAddOutlinedIcon sx={{ fontSize: 48, color: 'var(--line)', mb: 1 }} />
+            <Typography variant="body2" sx={{ color: 'var(--soft)' }}>
               No hay invitaciones aún. Generá el primero enlace para comenzar.
             </Typography>
           </Box>
@@ -123,21 +111,21 @@ export default function InvitacionesPage() {
               const cfg = ESTADO_CONFIG[inv.estado];
               const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/registro-paciente/${inv.token}`;
               return (
-                <Box key={inv.id} sx={{ px: 3, py: 2, borderBottom: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                <Box key={inv.id} sx={{ px: 3, py: 2, borderBottom: '1px solid var(--bg)', display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
                   <Box sx={{ flex: 1, minWidth: 200 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                       <Chip label={cfg.label} size="small" sx={{ backgroundColor: cfg.bg, color: cfg.color, fontWeight: 600, fontSize: '0.7rem' }} />
-                      <Typography variant="caption" sx={{ color: '#94A3B8' }}>
+                      <Typography variant="caption" sx={{ color: 'var(--soft)' }}>
                         {formatFecha(inv.creadoEn)}
                       </Typography>
                     </Box>
                     {inv.datosPaciente && (
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#0F172A' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--ink)' }}>
                         {inv.datosPaciente.apellido}, {inv.datosPaciente.nombre} — DNI {inv.datosPaciente.dni}
                       </Typography>
                     )}
                     {inv.estado === 'pendiente' && (
-                      <Typography variant="caption" sx={{ color: '#94A3B8', wordBreak: 'break-all', display: 'block', mt: 0.25 }}>
+                      <Typography variant="caption" sx={{ color: 'var(--soft)', wordBreak: 'break-all', display: 'block', mt: 0.25 }}>
                         {url}
                       </Typography>
                     )}
@@ -156,13 +144,13 @@ export default function InvitacionesPage() {
                         variant="contained"
                         startIcon={<CheckCircleOutlineIcon />}
                         onClick={() => setDetalleDialogo(inv)}
-                        sx={{ backgroundColor: '#7C3AED', '&:hover': { backgroundColor: '#6D28D9' } }}
+                        sx={{ backgroundColor: 'var(--ink)', '&:hover': { backgroundColor: 'var(--ink)' } }}
                       >
                         Revisar y aprobar
                       </Button>
                     )}
                     {inv.estado === 'aprobado' && (
-                      <Typography variant="caption" sx={{ color: '#059669', fontWeight: 600 }}>✓ Creado</Typography>
+                      <Typography variant="caption" sx={{ color: 'var(--ok)', fontWeight: 600 }}>✓ Creado</Typography>
                     )}
                   </Box>
                 </Box>
@@ -178,7 +166,7 @@ export default function InvitacionesPage() {
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
           <Alert severity="success">Enlace listo. Copialo y enviáselo al paciente.</Alert>
           <TextField value={linkDialogo ?? ''} fullWidth size="small" slotProps={{ input: { readOnly: true } }} />
-          <Typography variant="caption" sx={{ color: '#64748B' }}>
+          <Typography variant="caption" sx={{ color: 'var(--soft)' }}>
             El paciente puede abrirlo desde cualquier dispositivo, completar el formulario y los datos aparecerán acá para que los apruebes.
           </Typography>
         </DialogContent>
@@ -213,9 +201,9 @@ export default function InvitacionesPage() {
                   ['Notas', d.notas],
                 ] as [string, string | undefined][]).filter(([, v]) => v).map(([label, value]) => (
                   <Box key={label}>
-                    <Typography variant="caption" sx={{ color: '#94A3B8', textTransform: 'uppercase', fontSize: '0.6rem', fontWeight: 700 }}>{label}</Typography>
-                    <Typography variant="body2" sx={{ color: '#0F172A' }}>{value}</Typography>
-                    <Divider sx={{ mt: 1, borderColor: '#F8FAFC' }} />
+                    <Typography variant="caption" sx={{ color: 'var(--soft)', textTransform: 'uppercase', fontSize: '0.6rem', fontWeight: 700 }}>{label}</Typography>
+                    <Typography variant="body2" sx={{ color: 'var(--ink)' }}>{value}</Typography>
+                    <Divider sx={{ mt: 1, borderColor: 'var(--bg)' }} />
                   </Box>
                 ))}
               </Box>

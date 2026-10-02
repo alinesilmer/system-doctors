@@ -44,9 +44,8 @@ export default function ObrasSocialesPage() {
   }, [agreement, busqueda]);
 
   return (
-    <PageContainer
-      titulo="Obras Sociales"
-      subtitulo="Aranceles vigentes según acuerdos del Colegio Médico de Corrientes"
+    <PageContainer volver="/mas"
+      titulo="Obras sociales"
     >
       {(errorProviders || errorPricing) && (
         <Alert severity="error" sx={{ mb: 2 }}>{errorProviders ?? errorPricing}</Alert>
@@ -54,7 +53,7 @@ export default function ObrasSocialesPage() {
 
       {/* Provider selector */}
       <Card sx={{ p: 3, mb: 2.5 }}>
-        <Typography variant="h6" sx={{ mb: 2, color: '#0F172A', fontWeight: 600 }}>
+        <Typography variant="h6" sx={{ mb: 2, color: 'var(--ink)', fontWeight: 600 }}>
           Seleccioná una obra social
         </Typography>
 
@@ -77,7 +76,7 @@ export default function ObrasSocialesPage() {
                   <Box>
                     <Typography variant="body2" sx={{ fontWeight: 500 }}>{option.nombre}</Typography>
                     {option.codigoObraSocial && (
-                      <Typography variant="caption" sx={{ color: '#94A3B8' }}>
+                      <Typography variant="caption" sx={{ color: 'var(--soft)' }}>
                         Código: {option.codigoObraSocial}
                       </Typography>
                     )}
@@ -94,19 +93,19 @@ export default function ObrasSocialesPage() {
             <Chip
               label={`Vigente desde ${new Date(agreement.vigenciaDesde).toLocaleDateString('es-AR')}`}
               size="small"
-              sx={{ backgroundColor: '#D1FAE5', color: '#065F46', fontWeight: 500 }}
+              sx={{ backgroundColor: 'color-mix(in srgb, var(--ok) 18%, transparent)', color: 'var(--ok)', fontWeight: 500 }}
             />
             {agreement.vigenciaHasta && (
               <Chip
                 label={`Hasta ${new Date(agreement.vigenciaHasta).toLocaleDateString('es-AR')}`}
                 size="small"
-                sx={{ backgroundColor: '#FEF3C7', color: '#92400E', fontWeight: 500 }}
+                sx={{ backgroundColor: 'var(--sun)', color: 'var(--warn)', fontWeight: 500 }}
               />
             )}
             <Chip
               label={`${agreement.items.length} prestaciones`}
               size="small"
-              sx={{ backgroundColor: '#EFF6FF', color: '#1D4ED8', fontWeight: 500 }}
+              sx={{ backgroundColor: 'var(--mint)', color: 'var(--pink)', fontWeight: 500 }}
             />
           </Box>
         )}
@@ -118,7 +117,7 @@ export default function ObrasSocialesPage() {
           <Box
             sx={{
               p: 2,
-              borderBottom: '1px solid #E2E8F0',
+              borderBottom: '1px solid var(--line)',
               display: 'flex',
               gap: 2,
               alignItems: 'center',
@@ -130,14 +129,14 @@ export default function ObrasSocialesPage() {
               onChange={(e) => setBusqueda(e.target.value)}
               slotProps={{
                 input: {
-                  startAdornment: <SearchIcon sx={{ color: '#94A3B8', mr: 1, fontSize: 20 }} />,
+                  startAdornment: <SearchIcon sx={{ color: 'var(--soft)', mr: 1, fontSize: 20 }} />,
                 },
               }}
               sx={{ maxWidth: 400, flex: 1 }}
               size="small"
             />
             {busqueda && (
-              <Typography variant="caption" sx={{ color: '#64748B', whiteSpace: 'nowrap' }}>
+              <Typography variant="caption" sx={{ color: 'var(--soft)', whiteSpace: 'nowrap' }}>
                 {itemsFiltrados.length} resultado{itemsFiltrados.length !== 1 ? 's' : ''}
               </Typography>
             )}
@@ -165,10 +164,10 @@ export default function ObrasSocialesPage() {
             <TableContainer>
               <Table size="small">
                 <TableHead>
-                  <TableRow sx={{ backgroundColor: '#F8FAFC' }}>
-                    <TableCell sx={{ width: 120, fontWeight: 700, color: '#475569' }}>Código</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: '#475569' }}>Descripción</TableCell>
-                    <TableCell align="right" sx={{ width: 160, fontWeight: 700, color: '#475569' }}>Precio</TableCell>
+                  <TableRow sx={{ backgroundColor: 'var(--bg)' }}>
+                    <TableCell sx={{ width: 120, fontWeight: 700, color: 'var(--soft)' }}>Código</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: 'var(--soft)' }}>Descripción</TableCell>
+                    <TableCell align="right" sx={{ width: 160, fontWeight: 700, color: 'var(--soft)' }}>Precio</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -184,7 +183,7 @@ export default function ObrasSocialesPage() {
                           sx={{
                             fontFamily: 'monospace',
                             fontWeight: 700,
-                            color: '#2563EB',
+                            color: 'var(--pink)',
                             letterSpacing: '0.04em',
                           }}
                         >
@@ -192,11 +191,11 @@ export default function ObrasSocialesPage() {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" sx={{ color: '#0F172A' }}>
+                        <Typography variant="body2" sx={{ color: 'var(--ink)' }}>
                           {item.descripcion}
                         </Typography>
                         {item.unidad && (
-                          <Typography variant="caption" sx={{ color: '#94A3B8' }}>
+                          <Typography variant="caption" sx={{ color: 'var(--soft)' }}>
                             por {item.unidad}
                           </Typography>
                         )}
@@ -204,7 +203,7 @@ export default function ObrasSocialesPage() {
                       <TableCell align="right">
                         <Typography
                           variant="body2"
-                          sx={{ fontWeight: 700, color: '#059669', fontVariantNumeric: 'tabular-nums' }}
+                          sx={{ fontWeight: 700, color: 'var(--ok)', fontVariantNumeric: 'tabular-nums' }}
                         >
                           {formatPrecio(item.precio)}
                         </Typography>

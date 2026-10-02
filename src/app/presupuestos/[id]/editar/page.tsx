@@ -15,7 +15,7 @@ export default function EditarPresupuestoPage({ params }: { params: Promise<{ id
   if (error || !presupuesto) return <Alert severity="error">{error ?? 'Presupuesto no encontrado'}</Alert>;
 
   return (
-    <PageContainer titulo="Editar presupuesto" subtitulo={presupuesto.pacienteNombre ?? 'Sin paciente asignado'}>
+    <PageContainer volver="/presupuestos" titulo="Editar presupuesto" subtitulo={presupuesto.pacienteNombre ?? 'Sin paciente asignado'}>
       <FormularioPresupuesto modo="editar" inicial={presupuesto} />
     </PageContainer>
   );

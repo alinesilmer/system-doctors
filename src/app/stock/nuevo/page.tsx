@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: 'Nuevo Item de Stock' };
 
 export default function NuevoStockPage() {
   return (
-    <PageContainer titulo="Nuevo Item" subtitulo="Agregá un item al inventario">
+    <PageContainer volver="/stock" titulo="Nuevo insumo">
       <FormularioStock modo="crear" />
     </PageContainer>
   );

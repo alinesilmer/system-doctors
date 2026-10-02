@@ -31,10 +31,10 @@ interface Stats {
 }
 
 const ROL_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  super_admin: { label: 'Super Admin', color: '#7C3AED', bg: '#F3F0FF' },
-  admin:       { label: 'Admin',       color: '#1E40AF', bg: '#DBEAFE' },
-  medico:      { label: 'Médico',      color: '#065F46', bg: '#D1FAE5' },
-  secretaria:  { label: 'Secretaría',  color: '#92400E', bg: '#FEF3C7' },
+  super_admin: { label: 'Super Admin', color: 'var(--ink)', bg: 'var(--lila)' },
+  admin:       { label: 'Admin',       color: 'var(--pink)', bg: 'var(--mint)' },
+  medico:      { label: 'Médico',      color: 'var(--ok)', bg: 'color-mix(in srgb, var(--ok) 18%, transparent)' },
+  secretaria:  { label: 'Secretaría',  color: 'var(--warn)', bg: 'var(--sun)' },
 };
 
 async function contarColeccion(nombre: string): Promise<number> {
@@ -74,31 +74,31 @@ export default function AdminPage() {
   if (rol !== 'super_admin') return null;
 
   const statCards = [
-    { label: 'Usuarios',   value: stats?.usuarios  ?? 0, icon: PeopleAltOutlinedIcon,       color: '#7C3AED', bg: '#F3F0FF' },
-    { label: 'Pacientes',  value: stats?.pacientes  ?? 0, icon: LocalHospitalOutlinedIcon,  color: '#2563EB', bg: '#EFF6FF' },
-    { label: 'Turnos',     value: stats?.turnos     ?? 0, icon: CalendarMonthOutlinedIcon,  color: '#059669', bg: '#D1FAE5' },
-    { label: 'Stock items',value: stats?.stock      ?? 0, icon: InventoryOutlinedIcon,       color: '#D97706', bg: '#FEF3C7' },
-    { label: 'Chats WA',   value: stats?.mensajes   ?? 0, icon: ChatOutlinedIcon,            color: '#16A34A', bg: '#F0FDF4' },
+    { label: 'Usuarios',   value: stats?.usuarios  ?? 0, icon: PeopleAltOutlinedIcon,       color: 'var(--ink)', bg: 'var(--lila)' },
+    { label: 'Pacientes',  value: stats?.pacientes  ?? 0, icon: LocalHospitalOutlinedIcon,  color: 'var(--pink)', bg: 'var(--mint)' },
+    { label: 'Turnos',     value: stats?.turnos     ?? 0, icon: CalendarMonthOutlinedIcon,  color: 'var(--ok)', bg: 'color-mix(in srgb, var(--ok) 18%, transparent)' },
+    { label: 'Stock items',value: stats?.stock      ?? 0, icon: InventoryOutlinedIcon,       color: 'var(--warn)', bg: 'var(--sun)' },
+    { label: 'Chats WA',   value: stats?.mensajes   ?? 0, icon: ChatOutlinedIcon,            color: 'var(--ok)', bg: 'color-mix(in srgb, var(--ok) 18%, transparent)' },
   ];
 
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: '#F8FAFC', p: { xs: 2, md: 4 } }}>
+    <Box sx={{ minHeight: '100vh', backgroundColor: 'var(--bg)', p: { xs: 2, md: 4 } }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4, flexWrap: 'wrap', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Box sx={{ width: 44, height: 44, borderRadius: '12px', background: 'linear-gradient(135deg, #7C3AED, #9D50E0)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <LocalHospitalOutlinedIcon sx={{ color: '#fff', fontSize: 22 }} />
+          <Box sx={{ width: 44, height: 44, borderRadius: '12px', background: 'linear-gradient(135deg, var(--ink), var(--ink))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <LocalHospitalOutlinedIcon sx={{ color: 'var(--on-accent)', fontSize: 22 }} />
           </Box>
           <Box>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: '#0F172A', lineHeight: 1.2 }}>Panel de administración</Typography>
-            <Typography variant="caption" sx={{ color: '#64748B' }}>MediSystem · Vista global del sistema</Typography>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: 'var(--ink)', lineHeight: 1.2 }}>Panel de administración</Typography>
+            <Typography variant="caption" sx={{ color: 'var(--soft)' }}>MediSystem · Vista global del sistema</Typography>
           </Box>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Typography variant="body2" sx={{ color: '#475569' }}>
-            {perfil?.nombre} · <span style={{ color: '#7C3AED', fontWeight: 600 }}>Super Admin</span>
+          <Typography variant="body2" sx={{ color: 'var(--soft)' }}>
+            {perfil?.nombre} · <span style={{ color: 'var(--ink)', fontWeight: 600 }}>Super Admin</span>
           </Typography>
-          <Button size="small" variant="outlined" startIcon={<LogoutIcon />} onClick={cerrarSesion} sx={{ borderColor: '#E2E8F0', color: '#64748B' }}>
+          <Button size="small" variant="outlined" startIcon={<LogoutIcon />} onClick={cerrarSesion} sx={{ borderColor: 'var(--line)', color: 'var(--soft)' }}>
             Salir
           </Button>
         </Box>
@@ -111,28 +111,28 @@ export default function AdminPage() {
       {/* Stats */}
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 2, mb: 4 }}>
         {statCards.map(({ label, value, icon: Icon, color, bg }) => (
-          <Card key={label} sx={{ p: 2.5, borderRadius: 2, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <Card key={label} sx={{ p: 2.5 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
               <Box sx={{ width: 36, height: 36, borderRadius: '10px', backgroundColor: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Icon sx={{ fontSize: 18, color }} />
               </Box>
             </Box>
-            <Typography variant="h4" sx={{ fontWeight: 700, color: '#0F172A', lineHeight: 1 }}>{value.toLocaleString()}</Typography>
-            <Typography variant="caption" sx={{ color: '#64748B' }}>{label}</Typography>
+            <Typography variant="h4" sx={{ fontWeight: 700, color: 'var(--ink)', lineHeight: 1 }}>{value.toLocaleString()}</Typography>
+            <Typography variant="caption" sx={{ color: 'var(--soft)' }}>{label}</Typography>
           </Card>
         ))}
       </Box>
 
       {/* Users table */}
-      <Card sx={{ borderRadius: 2, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        <Box sx={{ px: 3, py: 2, borderBottom: '1px solid #F1F5F9' }}>
-          <Typography variant="h6" sx={{ fontWeight: 700, color: '#0F172A' }}>Usuarios del sistema</Typography>
-          <Typography variant="caption" sx={{ color: '#64748B' }}>{usuarios.length} usuarios registrados</Typography>
+      <Card sx={{ overflow: 'hidden' }}>
+        <Box sx={{ px: 3, py: 2, borderBottom: '1px solid var(--bg)' }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: 'var(--ink)' }}>Usuarios del sistema</Typography>
+          <Typography variant="caption" sx={{ color: 'var(--soft)' }}>{usuarios.length} usuarios registrados</Typography>
         </Box>
 
         {usuarios.length === 0 ? (
           <Box sx={{ p: 4, textAlign: 'center' }}>
-            <Typography variant="body2" sx={{ color: '#94A3B8' }}>
+            <Typography variant="body2" sx={{ color: 'var(--soft)' }}>
               No hay usuarios aún. Creá el primer usuario desde Firebase Console → Authentication.
             </Typography>
           </Box>
@@ -146,31 +146,31 @@ export default function AdminPage() {
                     {u.nombre?.[0]?.toUpperCase() ?? '?'}
                   </Avatar>
                   <Box sx={{ flex: 1, minWidth: 160 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#0F172A' }}>{u.nombre}</Typography>
-                    <Typography variant="caption" sx={{ color: '#64748B' }}>{u.email}</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--ink)' }}>{u.nombre}</Typography>
+                    <Typography variant="caption" sx={{ color: 'var(--soft)' }}>{u.email}</Typography>
                   </Box>
                   <Chip label={cfg.label} size="small" sx={{ backgroundColor: cfg.bg, color: cfg.color, fontWeight: 600, fontSize: '0.7rem' }} />
                   <Box sx={{ textAlign: 'right', minWidth: 120 }}>
-                    <Typography variant="caption" sx={{ color: '#94A3B8', display: 'block' }}>
+                    <Typography variant="caption" sx={{ color: 'var(--soft)', display: 'block' }}>
                       {u.ultimoAcceso ? `Último acceso: ${new Date(u.ultimoAcceso).toLocaleDateString('es-AR')}` : 'Sin acceso aún'}
                     </Typography>
-                    <Typography variant="caption" sx={{ color: '#CBD5E1', display: 'block', fontSize: '0.6rem' }}>
+                    <Typography variant="caption" sx={{ color: 'var(--line)', display: 'block', fontSize: '0.6rem' }}>
                       {u.uid.slice(0, 12)}…
                     </Typography>
                   </Box>
                 </Box>
-                {i < usuarios.length - 1 && <Divider sx={{ borderColor: '#F8FAFC' }} />}
+                {i < usuarios.length - 1 && <Divider sx={{ borderColor: 'var(--bg)' }} />}
               </Box>
             );
           })
         )}
       </Card>
 
-      <Box sx={{ mt: 3, p: 2.5, backgroundColor: '#F1F5F9', borderRadius: 2 }}>
-        <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600, display: 'block', mb: 0.5 }}>
+      <Box sx={{ mt: 3, p: 2.5, backgroundColor: 'var(--bg)', borderRadius: 2 }}>
+        <Typography variant="caption" sx={{ color: 'var(--soft)', fontWeight: 600, display: 'block', mb: 0.5 }}>
           Para crear un usuario nuevo:
         </Typography>
-        <Typography variant="caption" sx={{ color: '#94A3B8', display: 'block' }}>
+        <Typography variant="caption" sx={{ color: 'var(--soft)', display: 'block' }}>
           1. Firebase Console → Authentication → Add user (email + password)<br />
           2. Firestore → colección <code>usuarios</code> → documento con el UID → campos: nombre, email, rol, cuentaId, activo: true
         </Typography>

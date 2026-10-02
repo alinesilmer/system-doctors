@@ -1,99 +1,86 @@
 import {
-  collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc,
-  query, orderBy, Timestamp, serverTimestamp,
+  collection, doc, getDocs, limit, query, orderBy, serverTimestamp, runTransaction,
 } from 'firebase/firestore';
 import { getFirebaseDb } from '../firebase';
+import { crearRepositorio, toIso } from './repository';
 import type { ItemStock, MovimientoStock } from '../types';
 
 const ITEMS_COL = 'stock';
 const MOV_COL = 'movimientos';
 
-function toIso(ts: unknown): string {
-  if (!ts) return new Date().toISOString();
-  if (ts instanceof Timestamp) return ts.toDate().toISOString();
-  if (typeof ts === 'string') return ts;
-  return new Date().toISOString();
+export const repositorioStock = crearRepositorio<ItemStock>(ITEMS_COL, 'nombre');
+
+// ─── Movimientos ─────────────────────────────────────────────────────────────
+
+/** Lanzado cuando una salida supera el stock disponible en el momento de escribir. */
+export class StockInsuficienteError extends Error {
+  constructor(readonly disponible: number, readonly solicitado: number) {
+    super(`Stock insuficiente: hay ${disponible} y se solicitaron ${solicitado}`);
+    this.name = 'StockInsuficienteError';
+  }
 }
 
-export async function getStock(): Promise<ItemStock[]> {
-  const snap = await getDocs(query(collection(getFirebaseDb(), ITEMS_COL), orderBy('nombre')));
-  return snap.docs.map((d) => {
-    const data = d.data();
-    return {
-      ...data,
-      id: d.id,
-      creadoEn: toIso(data.creadoEn),
-      actualizadoEn: toIso(data.actualizadoEn),
-    } as ItemStock;
-  });
+export class ItemInexistenteError extends Error {
+  constructor(readonly itemId: string) {
+    super(`No existe el ítem de stock ${itemId}`);
+    this.name = 'ItemInexistenteError';
+  }
 }
 
-export async function getItemStock(id: string): Promise<ItemStock | null> {
-  const snap = await getDoc(doc(getFirebaseDb(), ITEMS_COL, id));
-  if (!snap.exists()) return null;
-  const data = snap.data();
-  return {
-    ...data,
-    id: snap.id,
-    creadoEn: toIso(data.creadoEn),
-    actualizadoEn: toIso(data.actualizadoEn),
-  } as ItemStock;
+function calcularCantidad(tipo: MovimientoStock['tipo'], actual: number, cantidad: number): number {
+  if (tipo === 'entrada') return actual + cantidad;
+  if (tipo === 'salida') return actual - cantidad;
+  return cantidad;
 }
 
-export async function crearItemStock(datos: Omit<ItemStock, 'id' | 'creadoEn' | 'actualizadoEn'>): Promise<string> {
-  const ref = await addDoc(collection(getFirebaseDb(), ITEMS_COL), {
-    ...datos,
-    creadoEn: serverTimestamp(),
-    actualizadoEn: serverTimestamp(),
-  });
-  return ref.id;
-}
-
-export async function actualizarItemStock(id: string, datos: Partial<ItemStock>): Promise<void> {
-  const { id: _id, creadoEn: _c, ...rest } = datos as ItemStock;
-  await updateDoc(doc(getFirebaseDb(), ITEMS_COL, id), {
-    ...rest,
-    actualizadoEn: serverTimestamp(),
-  });
-}
-
-export async function eliminarItemStock(id: string): Promise<void> {
-  await deleteDoc(doc(getFirebaseDb(), ITEMS_COL, id));
-}
-
+/**
+ * Registra el movimiento y ajusta el stock en una única transacción, de modo que
+ * dos salidas simultáneas no puedan dejar la cantidad en negativo.
+ */
 export async function registrarMovimiento(
-  item: ItemStock,
+  itemId: string,
   tipo: MovimientoStock['tipo'],
   cantidad: number,
-  motivo?: string
-): Promise<void> {
-  const cantidadAnterior = item.cantidad;
-  const cantidadNueva =
-    tipo === 'entrada' ? cantidadAnterior + cantidad :
-    tipo === 'salida' ? cantidadAnterior - cantidad :
-    cantidad;
+  motivo?: string,
+): Promise<{ cantidadAnterior: number; cantidadNueva: number }> {
+  const db = getFirebaseDb();
 
-  await addDoc(collection(getFirebaseDb(), MOV_COL), {
-    itemId: item.id,
-    itemNombre: item.nombre,
-    tipo,
-    cantidad,
-    cantidadAnterior,
-    cantidadNueva,
-    motivo: motivo ?? '',
-    creadoEn: serverTimestamp(),
-  });
+  return runTransaction(db, async (tx) => {
+    const itemRef = doc(db, ITEMS_COL, itemId);
+    const snap = await tx.get(itemRef);
+    if (!snap.exists()) throw new ItemInexistenteError(itemId);
 
-  await updateDoc(doc(getFirebaseDb(), ITEMS_COL, item.id), {
-    cantidad: cantidadNueva,
-    actualizadoEn: serverTimestamp(),
+    const item = snap.data() as ItemStock;
+    const cantidadAnterior = item.cantidad ?? 0;
+    const cantidadNueva = calcularCantidad(tipo, cantidadAnterior, cantidad);
+
+    if (cantidadNueva < 0) throw new StockInsuficienteError(cantidadAnterior, cantidad);
+
+    tx.set(doc(collection(db, MOV_COL)), {
+      itemId,
+      itemNombre: item.nombre,
+      tipo,
+      cantidad,
+      cantidadAnterior,
+      cantidadNueva,
+      motivo: motivo ?? '',
+      creadoEn: serverTimestamp(),
+    });
+
+    tx.update(itemRef, { cantidad: cantidadNueva, actualizadoEn: serverTimestamp() });
+
+    return { cantidadAnterior, cantidadNueva };
   });
 }
 
-export async function getMovimientos(): Promise<MovimientoStock[]> {
-  const snap = await getDocs(query(collection(getFirebaseDb(), MOV_COL), orderBy('creadoEn', 'desc')));
-  return snap.docs.map((d) => {
-    const data = d.data();
-    return { ...data, id: d.id, creadoEn: toIso(data.creadoEn) } as MovimientoStock;
-  });
+/** Últimos movimientos, del más reciente al más antiguo. */
+export async function getMovimientos(maximo = 200): Promise<MovimientoStock[]> {
+  const snap = await getDocs(
+    query(collection(getFirebaseDb(), MOV_COL), orderBy('creadoEn', 'desc'), limit(maximo)),
+  );
+  return snap.docs.map((d) => ({
+    ...d.data(),
+    id: d.id,
+    creadoEn: toIso(d.data().creadoEn),
+  } as MovimientoStock));
 }

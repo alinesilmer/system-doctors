@@ -1,5 +1,6 @@
 'use client';
 
+import { pedirApi } from '@/lib/api/cliente';
 import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -17,7 +18,6 @@ import Divider from '@mui/material/Divider';
 import TextField from '@mui/material/TextField';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
-import type { ItemStock } from '@/lib/types';
 
 interface ProductoFactura {
   nombre: string;
@@ -56,17 +56,19 @@ export default function TabFacturaDemo({ onIngreso }: Props) {
   const [facturaSeleccionada, setFacturaSeleccionada] = useState<typeof FACTURAS_DEMO[0] | null>(null);
   const [simulando, setSimulando] = useState(false);
   const [exito, setExito] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [proveedorLibre, setProveedorLibre] = useState('');
 
   async function simularIngreso() {
     if (!facturaSeleccionada) return;
     setSimulando(true);
+    setError(null);
     try {
-      for (const prod of facturaSeleccionada.productos) {
-        await fetch('/api/stock', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+      // En paralelo: son altas independientes entre sí.
+      await Promise.all(facturaSeleccionada.productos.map((prod) =>
+        pedirApi('/api/stock', {
+          metodo: 'POST',
+          cuerpo: {
             nombre: prod.nombre,
             categoria: prod.categoria,
             cantidad: prod.cantidad,
@@ -75,13 +77,15 @@ export default function TabFacturaDemo({ onIngreso }: Props) {
             proveedor: facturaSeleccionada.proveedor,
             lote: prod.lote,
             ubicacion: 'Depósito',
-          }),
-        });
-      }
+          },
+        })));
       setExito(true);
       setFacturaSeleccionada(null);
-      onIngreso();
+    } catch (e) {
+      setError(`No se pudieron ingresar todos los productos: ${(e as Error).message}`);
     } finally {
+      // Aun con un fallo parcial, el inventario pudo cambiar.
+      onIngreso();
       setSimulando(false);
     }
   }
@@ -100,15 +104,16 @@ export default function TabFacturaDemo({ onIngreso }: Props) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {error && <Alert severity="error" sx={{ borderRadius: 2 }}>{error}</Alert>}
       <Alert severity="info" sx={{ borderRadius: 2 }}>
         <strong>Modo demo</strong> — Simulá el ingreso de productos desde una factura de proveedor. En producción esto conectaría con el sistema de facturación electrónica.
       </Alert>
 
       {/* Selector de factura */}
       <Card sx={{ overflow: 'hidden' }}>
-        <Box sx={{ px: 2.5, py: 1.5, borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 1 }}>
-          <ReceiptLongOutlinedIcon sx={{ color: '#6366F1', fontSize: 18 }} />
-          <Typography variant="h6" sx={{ fontWeight: 700, color: '#0F172A' }}>Facturas disponibles</Typography>
+        <Box sx={{ px: 2.5, py: 1.5, borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <ReceiptLongOutlinedIcon sx={{ color: 'var(--pink)', fontSize: 18 }} />
+          <Typography variant="h6" sx={{ fontWeight: 700, color: 'var(--ink)' }}>Facturas disponibles</Typography>
         </Box>
         <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
           {FACTURAS_DEMO.map((f) => (
@@ -119,24 +124,24 @@ export default function TabFacturaDemo({ onIngreso }: Props) {
                 p: 2,
                 borderRadius: 2,
                 border: '2px solid',
-                borderColor: facturaSeleccionada?.id === f.id ? '#6366F1' : '#E2E8F0',
+                borderColor: facturaSeleccionada?.id === f.id ? 'var(--pink)' : 'var(--line)',
                 cursor: 'pointer',
                 transition: 'all 0.15s',
-                backgroundColor: facturaSeleccionada?.id === f.id ? '#F5F3FF' : 'transparent',
-                '&:hover': { borderColor: '#A5B4FC', backgroundColor: '#FAFAFA' },
+                backgroundColor: facturaSeleccionada?.id === f.id ? 'var(--lila)' : 'transparent',
+                '&:hover': { borderColor: 'var(--lila)', backgroundColor: 'var(--bg)' },
               }}
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                 <Box sx={{ flex: 1 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#0F172A' }}>{f.id}</Typography>
-                  <Typography variant="caption" sx={{ color: '#64748B' }}>{f.proveedor} · {new Date(f.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'var(--ink)' }}>{f.id}</Typography>
+                  <Typography variant="caption" sx={{ color: 'var(--soft)' }}>{f.proveedor} · {new Date(f.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</Typography>
                 </Box>
-                <Chip label={`${f.productos.length} items`} size="small" sx={{ backgroundColor: '#EDE9FE', color: '#5B21B6', fontWeight: 600 }} />
+                <Chip label={`${f.productos.length} items`} size="small" sx={{ backgroundColor: 'var(--lila)', color: 'var(--ink)', fontWeight: 600 }} />
               </Box>
             </Box>
           ))}
 
-          <Divider sx={{ my: 0.5 }}><Typography variant="caption" sx={{ color: '#94A3B8' }}>o ingresá un proveedor manual</Typography></Divider>
+          <Divider sx={{ my: 0.5 }}><Typography variant="caption" sx={{ color: 'var(--soft)' }}>o ingresá un proveedor manual</Typography></Divider>
           <TextField
             label="Proveedor (factura manual)"
             value={proveedorLibre}
@@ -153,49 +158,49 @@ export default function TabFacturaDemo({ onIngreso }: Props) {
       {/* Preview de productos */}
       {facturaSeleccionada && (
         <Card sx={{ overflow: 'hidden' }}>
-          <Box sx={{ px: 2.5, py: 1.5, borderBottom: '1px solid #E2E8F0' }}>
-            <Typography variant="h6" sx={{ fontWeight: 700, color: '#0F172A' }}>
+          <Box sx={{ px: 2.5, py: 1.5, borderBottom: '1px solid var(--line)' }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: 'var(--ink)' }}>
               Productos — {facturaSeleccionada.id}
             </Typography>
-            <Typography variant="caption" sx={{ color: '#64748B' }}>{facturaSeleccionada.proveedor}</Typography>
+            <Typography variant="caption" sx={{ color: 'var(--soft)' }}>{facturaSeleccionada.proveedor}</Typography>
           </Box>
           <TableContainer>
             <Table size="small">
               <TableHead>
-                <TableRow sx={{ backgroundColor: '#F8FAFC' }}>
-                  <TableCell sx={{ fontWeight: 700, color: '#475569' }}>Producto</TableCell>
-                  <TableCell sx={{ fontWeight: 700, color: '#475569' }}>Categoría</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 700, color: '#475569' }}>Cantidad</TableCell>
-                  <TableCell sx={{ fontWeight: 700, color: '#475569' }}>Lote</TableCell>
+                <TableRow sx={{ backgroundColor: 'var(--bg)' }}>
+                  <TableCell sx={{ fontWeight: 700, color: 'var(--soft)' }}>Producto</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: 'var(--soft)' }}>Categoría</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 700, color: 'var(--soft)' }}>Cantidad</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: 'var(--soft)' }}>Lote</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {facturaSeleccionada.productos.map((p, i) => (
                   <TableRow key={i} sx={{ '&:last-child td': { borderBottom: 0 } }}>
                     <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#0F172A' }}>{p.nombre}</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--ink)' }}>{p.nombre}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip label={p.categoria} size="small" sx={{ backgroundColor: '#F1F5F9', color: '#475569' }} />
+                      <Chip label={p.categoria} size="small" sx={{ backgroundColor: 'var(--bg)', color: 'var(--soft)' }} />
                     </TableCell>
                     <TableCell align="center">
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>{p.cantidad} {p.unidad}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" sx={{ fontFamily: 'monospace', color: '#64748B' }}>{p.lote}</Typography>
+                      <Typography variant="body2" sx={{ fontFamily: 'monospace', color: 'var(--soft)' }}>{p.lote}</Typography>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </TableContainer>
-          <Box sx={{ p: 2.5, borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end' }}>
+          <Box sx={{ p: 2.5, borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'flex-end' }}>
             <Button
               variant="contained"
               onClick={simularIngreso}
               disabled={simulando}
               startIcon={<ReceiptLongOutlinedIcon />}
-              sx={{ backgroundColor: '#6366F1', '&:hover': { backgroundColor: '#4F46E5' } }}
+              sx={{ backgroundColor: 'var(--pink)', '&:hover': { backgroundColor: 'var(--pink)' } }}
             >
               {simulando ? 'Procesando...' : 'Simular ingreso al inventario'}
             </Button>

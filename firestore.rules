@@ -1,0 +1,68 @@
+rules_version = '2';
+
+// Datos clínicos: nada es público. Sólo usuarios autenticados y activos del
+// sistema pueden leer o escribir, y el registro público de pacientes entra
+// exclusivamente por la API del servidor (nunca directo desde el cliente).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function estaAutenticado() {
+      return request.auth != null;
+    }
+
+    function perfil() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+
+    function esUsuarioActivo() {
+      return estaAutenticado()
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+        && perfil().activo == true;
+    }
+
+    function esAdmin() {
+      return esUsuarioActivo() && perfil().rol in ['admin', 'super_admin'];
+    }
+
+    // Cada usuario lee su propio perfil; sólo un admin da de alta o cambia roles.
+    match /usuarios/{uid} {
+      allow read: if esUsuarioActivo() && (request.auth.uid == uid || esAdmin());
+      allow write: if esAdmin();
+    }
+
+    // Historia clínica y todo lo que cuelga de un paciente.
+    match /pacientes/{pacienteId} {
+      allow read, write: if esUsuarioActivo();
+
+      match /historiaClinica/{entradaId} {
+        allow read, write: if esUsuarioActivo();
+      }
+    }
+
+    match /turnos/{doc}             { allow read, write: if esUsuarioActivo(); }
+    match /stock/{doc}              { allow read, write: if esUsuarioActivo(); }
+    match /movimientos/{doc}        { allow read, write: if esUsuarioActivo(); }
+    match /practicas/{doc}          { allow read, write: if esUsuarioActivo(); }
+    match /tratamientos/{doc}       { allow read, write: if esUsuarioActivo(); }
+    match /presupuestos/{doc}       { allow read, write: if esUsuarioActivo(); }
+    match /documentos/{doc}         { allow read, write: if esUsuarioActivo(); }
+    match /medicamentos/{doc}       { allow read, write: if esUsuarioActivo(); }
+    match /conversaciones_wa/{doc}  { allow read, write: if esUsuarioActivo(); }
+
+    // Catálogo de obras sociales: lectura para el equipo, alta sólo por admin.
+    match /insurance_providers/{doc} { allow read: if esUsuarioActivo(); allow write: if esAdmin(); }
+    match /pricing_agreements/{doc}  { allow read: if esUsuarioActivo(); allow write: if esAdmin(); }
+    match /user_providers/{doc}      { allow read: if esUsuarioActivo(); allow write: if esAdmin(); }
+
+    // Las invitaciones se resuelven por token en el servidor; el cliente anónimo
+    // no puede enumerarlas ni leerlas.
+    match /invitaciones_paciente/{doc} {
+      allow read, write: if esUsuarioActivo();
+    }
+
+    // Cualquier colección no declarada queda cerrada.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -5,7 +5,7 @@ import FormularioTratamiento from '@/components/tratamientos/FormularioTratamien
 
 export default function NuevoTratamientoPage() {
   return (
-    <PageContainer titulo="Nuevo tratamiento" subtitulo="Configurá un paquete de prácticas reutilizable">
+    <PageContainer volver="/tratamientos" titulo="Nuevo tratamiento">
       <FormularioTratamiento modo="crear" />
     </PageContainer>
   );

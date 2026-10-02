@@ -15,7 +15,7 @@ export default function EditarTratamientoPage({ params }: { params: Promise<{ id
   if (error || !tratamiento) return <Alert severity="error">{error ?? 'Tratamiento no encontrado'}</Alert>;
 
   return (
-    <PageContainer titulo="Editar tratamiento" subtitulo={tratamiento.nombre}>
+    <PageContainer volver="/tratamientos" titulo="Editar tratamiento" subtitulo={tratamiento.nombre}>
       <FormularioTratamiento modo="editar" inicial={tratamiento} />
     </PageContainer>
   );

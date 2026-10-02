@@ -37,40 +37,13 @@ import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import MedicalServicesOutlinedIcon from '@mui/icons-material/MedicalServicesOutlined';
 import ScienceOutlinedIcon from '@mui/icons-material/ScienceOutlined';
 import LocalHospitalOutlinedIcon from '@mui/icons-material/LocalHospitalOutlined';
+import { ESTADOS_LISTA, TIPO_COLORS, TIPO_ICONS, TIPO_LABELS } from './config';
+import { pedirApi } from '@/lib/api/cliente';
+import { formatPrecio } from '@/lib/formato';
 import { usePracticas } from '@/hooks/usePracticas';
 import { useTratamientos } from '@/hooks/useTratamientos';
 import { usePacientes } from '@/hooks/usePacientes';
 import type { Presupuesto, ItemPresupuesto, EstadoPresupuesto, Practica, Tratamiento } from '@/lib/types';
-
-const ESTADOS: { value: EstadoPresupuesto; label: string; color: string; bg: string }[] = [
-  { value: 'borrador',  label: 'Borrador',  color: '#92400E', bg: '#FEF3C7' },
-  { value: 'enviado',   label: 'Enviado',   color: '#1D4ED8', bg: '#DBEAFE' },
-  { value: 'aceptado',  label: 'Aceptado',  color: '#065F46', bg: '#D1FAE5' },
-  { value: 'rechazado', label: 'Rechazado', color: '#991B1B', bg: '#FEE2E2' },
-  { value: 'vencido',   label: 'Vencido',   color: '#475569', bg: '#F1F5F9' },
-];
-
-function formatPrecio(n: number) {
-  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
-}
-
-const TIPO_ICONS = {
-  practica:        <LocalHospitalOutlinedIcon sx={{ fontSize: 16 }} />,
-  tratamiento:     <MedicalServicesOutlinedIcon sx={{ fontSize: 16 }} />,
-  examen_externo:  <ScienceOutlinedIcon sx={{ fontSize: 16 }} />,
-};
-
-const TIPO_LABELS = {
-  practica:        'Práctica',
-  tratamiento:     'Tratamiento',
-  examen_externo:  'Examen externo',
-};
-
-const TIPO_COLORS = {
-  practica:       { bg: '#DBEAFE', color: '#1D4ED8' },
-  tratamiento:    { bg: '#EDE9FE', color: '#5B21B6' },
-  examen_externo: { bg: '#FEF3C7', color: '#92400E' },
-};
 
 interface Props {
   modo: 'crear' | 'editar';
@@ -215,14 +188,11 @@ export default function FormularioPresupuesto({ modo, inicial }: Props) {
         notas: notas.trim() || undefined,
       };
 
-      const res = modo === 'crear'
-        ? await fetch('/api/presupuestos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-        : await fetch(`/api/presupuestos/${inicial!.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error ?? 'Error al guardar');
-      }
+      await pedirApi(modo === 'crear' ? '/api/presupuestos' : `/api/presupuestos/${inicial!.id}`, {
+        metodo: modo === 'crear' ? 'POST' : 'PATCH',
+        cuerpo: payload,
+        mensajeError: 'Error al guardar',
+      });
       router.push('/presupuestos');
       router.refresh();
     } catch (e) {
@@ -239,7 +209,7 @@ export default function FormularioPresupuesto({ modo, inicial }: Props) {
       {/* Datos generales */}
       <Card>
         <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, p: 3 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0F172A' }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--ink)' }}>
             Datos del presupuesto
           </Typography>
 
@@ -257,7 +227,7 @@ export default function FormularioPresupuesto({ modo, inicial }: Props) {
             <FormControl fullWidth>
               <InputLabel>Estado</InputLabel>
               <Select label="Estado" value={estado} onChange={(e) => setEstado(e.target.value as EstadoPresupuesto)}>
-                {ESTADOS.map((s) => (
+                {ESTADOS_LISTA.map((s) => (
                   <MenuItem key={s.value} value={s.value}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: s.color }} />
@@ -292,7 +262,7 @@ export default function FormularioPresupuesto({ modo, inicial }: Props) {
       <Card>
         <CardContent sx={{ p: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0F172A' }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--ink)' }}>
               Ítems del presupuesto
             </Typography>
             <Button variant="outlined" startIcon={<AddIcon />} onClick={abrirDialogo} size="small">
@@ -301,8 +271,8 @@ export default function FormularioPresupuesto({ modo, inicial }: Props) {
           </Box>
 
           {items.length === 0 ? (
-            <Box sx={{ py: 5, textAlign: 'center', backgroundColor: '#F8FAFC', borderRadius: 2 }}>
-              <Typography variant="body2" sx={{ color: '#94A3B8', mb: 1 }}>
+            <Box sx={{ py: 5, textAlign: 'center', backgroundColor: 'var(--bg)', borderRadius: 2 }}>
+              <Typography variant="body2" sx={{ color: 'var(--soft)', mb: 1 }}>
                 Aún no se agregaron ítems al presupuesto
               </Typography>
               <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={abrirDialogo}>
@@ -330,7 +300,7 @@ export default function FormularioPresupuesto({ modo, inicial }: Props) {
                         <TableCell>
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.nombre}</Typography>
                           {item.descripcion && (
-                            <Typography variant="caption" sx={{ color: '#94A3B8' }}>{item.descripcion}</Typography>
+                            <Typography variant="caption" sx={{ color: 'var(--soft)' }}>{item.descripcion}</Typography>
                           )}
                         </TableCell>
                         <TableCell>
@@ -368,7 +338,7 @@ export default function FormularioPresupuesto({ modo, inicial }: Props) {
                         </TableCell>
                         <TableCell align="center">
                           <Tooltip title="Quitar">
-                            <IconButton size="small" sx={{ color: '#EF4444' }} onClick={() => quitarItem(idx)}>
+                            <IconButton size="small" sx={{ color: 'var(--bad)' }} onClick={() => quitarItem(idx)}>
                               <DeleteOutlinedIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
@@ -384,11 +354,11 @@ export default function FormularioPresupuesto({ modo, inicial }: Props) {
               <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 260 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="body2" sx={{ color: '#64748B' }}>Subtotal</Typography>
+                    <Typography variant="body2" sx={{ color: 'var(--soft)' }}>Subtotal</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPrecio(subtotal)}</Typography>
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
-                    <Typography variant="body2" sx={{ color: '#64748B' }}>Descuento</Typography>
+                    <Typography variant="body2" sx={{ color: 'var(--soft)' }}>Descuento</Typography>
                     <TextField
                       type="number"
                       value={descuento}
@@ -401,7 +371,7 @@ export default function FormularioPresupuesto({ modo, inicial }: Props) {
                   <Divider />
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography variant="body1" sx={{ fontWeight: 700 }}>TOTAL</Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 800, color: '#2563EB' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 800, color: 'var(--pink)' }}>
                       {formatPrecio(total)}
                     </Typography>
                   </Box>
@@ -425,7 +395,7 @@ export default function FormularioPresupuesto({ modo, inicial }: Props) {
       <Dialog open={dialogoAbierto} onClose={() => setDialogoAbierto(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Agregar ítem al presupuesto</DialogTitle>
         <DialogContent>
-          <Tabs value={tabAgregar} onChange={(_e, v) => setTabAgregar(v)} sx={{ mb: 2, borderBottom: '1px solid #E2E8F0' }}>
+          <Tabs value={tabAgregar} onChange={(_e, v) => setTabAgregar(v)} sx={{ mb: 2, borderBottom: '1px solid var(--line)' }}>
             <Tab icon={<LocalHospitalOutlinedIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Práctica" />
             <Tab icon={<MedicalServicesOutlinedIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Tratamiento" />
             <Tab icon={<ScienceOutlinedIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Examen externo" />
@@ -440,7 +410,7 @@ export default function FormularioPresupuesto({ modo, inicial }: Props) {
                   <li {...props} key={p.id}>
                     <Box>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>{p.nombre}</Typography>
-                      <Typography variant="caption" sx={{ color: '#94A3B8' }}>
+                      <Typography variant="caption" sx={{ color: 'var(--soft)' }}>
                         {p.categoria && `${p.categoria} · `}{formatPrecio(p.precio)}
                       </Typography>
                     </Box>
@@ -451,13 +421,13 @@ export default function FormularioPresupuesto({ modo, inicial }: Props) {
                 renderInput={(params) => <TextField {...params} label="Seleccioná una práctica" autoFocus />}
               />
               {practicaSel && (
-                <Box sx={{ p: 2, backgroundColor: '#F8FAFC', borderRadius: 2 }}>
+                <Box sx={{ p: 2, backgroundColor: 'var(--bg)', borderRadius: 2 }}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>{practicaSel.nombre}</Typography>
-                  <Typography variant="body2" sx={{ color: '#2563EB', fontWeight: 700, mt: 0.5 }}>
+                  <Typography variant="body2" sx={{ color: 'var(--pink)', fontWeight: 700, mt: 0.5 }}>
                     {formatPrecio(practicaSel.precio)}
                   </Typography>
                   {practicaSel.descripcion && (
-                    <Typography variant="caption" sx={{ color: '#64748B' }}>{practicaSel.descripcion}</Typography>
+                    <Typography variant="caption" sx={{ color: 'var(--soft)' }}>{practicaSel.descripcion}</Typography>
                   )}
                 </Box>
               )}
@@ -473,7 +443,7 @@ export default function FormularioPresupuesto({ modo, inicial }: Props) {
                   <li {...props} key={t.id}>
                     <Box>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>{t.nombre}</Typography>
-                      <Typography variant="caption" sx={{ color: '#94A3B8' }}>
+                      <Typography variant="caption" sx={{ color: 'var(--soft)' }}>
                         {t.practicas.length} práctica(s) · {formatPrecio(t.precioTotal)}
                       </Typography>
                     </Box>
@@ -484,15 +454,15 @@ export default function FormularioPresupuesto({ modo, inicial }: Props) {
                 renderInput={(params) => <TextField {...params} label="Seleccioná un tratamiento" autoFocus />}
               />
               {tratamientoSel && (
-                <Box sx={{ p: 2, backgroundColor: '#F8FAFC', borderRadius: 2 }}>
+                <Box sx={{ p: 2, backgroundColor: 'var(--bg)', borderRadius: 2 }}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>{tratamientoSel.nombre}</Typography>
-                  <Typography variant="body2" sx={{ color: '#2563EB', fontWeight: 700, mt: 0.5 }}>
+                  <Typography variant="body2" sx={{ color: 'var(--pink)', fontWeight: 700, mt: 0.5 }}>
                     {formatPrecio(tratamientoSel.precioTotal)}
                   </Typography>
                   {tratamientoSel.practicas.length > 0 && (
                     <Box sx={{ mt: 1 }}>
                       {tratamientoSel.practicas.map((p) => (
-                        <Typography key={p.practicaId} variant="caption" sx={{ color: '#64748B', display: 'block' }}>
+                        <Typography key={p.practicaId} variant="caption" sx={{ color: 'var(--soft)', display: 'block' }}>
                           • {p.practicaNombre} × {p.cantidad} — {formatPrecio(p.subtotal)}
                         </Typography>
                       ))}

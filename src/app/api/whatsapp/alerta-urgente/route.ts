@@ -1,39 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { setDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { getFirebaseDb } from '@/lib/firebase';
+import { NextRequest } from 'next/server';
+import { marcarUrgente } from '@/lib/firestore/mensajes';
+import { datosInvalidos, leerJson, manejarErrores, ok } from '@/lib/api/respuestas';
+import { exigirClaveInterna } from '@/lib/api/guardas';
+import { claveConversacion, esTelefonoValido } from '@/lib/whatsapp';
 
-// Called by n8n when a message is classified as urgente or needs human escalation.
-// Marks the conversation as urgent in Firestore so the inbox highlights it.
-export async function POST(req: NextRequest) {
-  const key = req.headers.get('x-internal-key');
-  if (key !== process.env.MEDISYSTEM_INTERNAL_KEY) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+// La llama n8n cuando un mensaje se clasifica como urgente o requiere escalar a
+// una persona. Marca la conversación para que la bandeja la destaque.
+export const POST = manejarErrores(async (req: NextRequest) => {
+  exigirClaveInterna(req);
 
-  try {
-    const body = await req.json() as {
-      from: string;
-      name?: string;
-      text: string;
-      intent: string;
-    };
+  const { from } = await leerJson(req) as { from?: unknown };
+  const telefono = typeof from === 'string' ? claveConversacion(from) : '';
+  if (!esTelefonoValido(telefono)) throw datosInvalidos('Missing or invalid from');
 
-    if (!body.from) {
-      return NextResponse.json({ error: 'Missing from' }, { status: 400 });
-    }
-
-    await setDoc(
-      doc(getFirebaseDb(), 'conversaciones_wa', body.from),
-      {
-        prioridad: 'urgente',
-        requiereAtencion: true,
-        ultimaAlerta: serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    return NextResponse.json({ ok: true });
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
-  }
-}
+  await marcarUrgente(telefono);
+  return ok({ ok: true });
+}, 'Error al registrar la alerta');

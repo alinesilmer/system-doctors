@@ -1,295 +1,200 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
-import Card from '@mui/material/Card';
-import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableContainer from '@mui/material/TableContainer';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
-import IconButton from '@mui/material/IconButton';
-import Tooltip from '@mui/material/Tooltip';
 import Alert from '@mui/material/Alert';
-import Chip from '@mui/material/Chip';
-import LinearProgress from '@mui/material/LinearProgress';
+import MenuItem from '@mui/material/MenuItem';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
-import MenuItem from '@mui/material/MenuItem';
-import Tabs from '@mui/material/Tabs';
+import IconButton from '@mui/material/IconButton';
 import Tab from '@mui/material/Tab';
-import AddIcon from '@mui/icons-material/Add';
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
-import SearchIcon from '@mui/icons-material/Search';
-import InventoryOutlinedIcon from '@mui/icons-material/InventoryOutlined';
-import SwapVertIcon from '@mui/icons-material/SwapVert';
-import NotificationsNoneOutlinedIcon from '@mui/icons-material/NotificationsNoneOutlined';
-import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
-import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
-import MedicalServicesOutlinedIcon from '@mui/icons-material/MedicalServicesOutlined';
+import Tabs from '@mui/material/Tabs';
+import Tooltip from '@mui/material/Tooltip';
+import ScienceRoundedIcon from '@mui/icons-material/ScienceRounded';
+import EventBusyRoundedIcon from '@mui/icons-material/EventBusyRounded';
+import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
+import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
+import MedicalServicesRoundedIcon from '@mui/icons-material/MedicalServicesRounded';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
+import SearchOffRoundedIcon from '@mui/icons-material/SearchOffRounded';
 import PageContainer from '@/components/ui/PageContainer';
 import EmptyState from '@/components/ui/EmptyState';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import ConfirmarDialogo from '@/components/ui/ConfirmarDialogo';
+import Buscador from '@/components/ui/Buscador';
+import Etiqueta from '@/components/ui/Etiqueta';
+import Pildora from '@/components/ui/Pildora';
+import Tubo, { nivelDe } from '@/components/stock/Tubo';
 import TabAlertas from '@/components/stock/TabAlertas';
 import TabMovimientos from '@/components/stock/TabMovimientos';
 import TabFacturaDemo from '@/components/stock/TabFacturaDemo';
 import TabProcedimiento from '@/components/stock/TabProcedimiento';
+import { pedirApi } from '@/lib/api/cliente';
 import { useStock } from '@/hooks/useStock';
-import type { ItemStock } from '@/lib/types';
-
-function nivelStock(item: ItemStock) {
-  if (item.cantidad <= 0) return { label: 'Sin stock', color: '#EF4444', bg: '#FEE2E2', pct: 0 };
-  if (item.cantidad <= item.cantidadMinima) return { label: 'Stock bajo', color: '#D97706', bg: '#FEF3C7', pct: Math.min((item.cantidad / Math.max(item.cantidadMinima * 2, 1)) * 100, 100) };
-  return { label: 'Normal', color: '#059669', bg: '#D1FAE5', pct: 100 };
-}
+import { useEliminar } from '@/hooks/useEliminar';
+import type { ItemStock, TipoMovimientoStock } from '@/lib/types';
 
 const TABS = [
-  { label: 'Inventario', icon: <InventoryOutlinedIcon sx={{ fontSize: 18 }} /> },
-  { label: 'Alertas', icon: <NotificationsNoneOutlinedIcon sx={{ fontSize: 18 }} /> },
-  { label: 'Movimientos', icon: <HistoryOutlinedIcon sx={{ fontSize: 18 }} /> },
-  { label: 'Factura Demo 🟡', icon: <ReceiptLongOutlinedIcon sx={{ fontSize: 18 }} /> },
-  { label: 'Procedimiento 🟡', icon: <MedicalServicesOutlinedIcon sx={{ fontSize: 18 }} /> },
+  { label: 'Stock', icon: <ScienceRoundedIcon /> },
+  { label: 'Vencen', icon: <EventBusyRoundedIcon /> },
+  { label: 'Historial', icon: <HistoryRoundedIcon /> },
+  { label: 'Factura', icon: <ReceiptLongRoundedIcon /> },
+  { label: 'Procedimiento', icon: <MedicalServicesRoundedIcon /> },
 ];
+
+const MOVIMIENTO_VACIO = { tipo: 'entrada' as TipoMovimientoStock, cantidad: 1, motivo: '' };
 
 export default function StockPage() {
   const router = useRouter();
   const { items, cargando, error, recargar } = useStock();
   const [tab, setTab] = useState(0);
   const [busqueda, setBusqueda] = useState('');
-  const [dialogoEliminar, setDialogoEliminar] = useState<{ id: string; nombre: string } | null>(null);
-  const [eliminando, setEliminando] = useState(false);
-  const [dialogoMovimiento, setDialogoMovimiento] = useState<ItemStock | null>(null);
-  const [movimiento, setMovimiento] = useState({ tipo: 'entrada' as 'entrada' | 'salida' | 'ajuste', cantidad: 1, motivo: '' });
-  const [guardandoMov, setGuardandoMov] = useState(false);
+  const [abierto, setAbierto] = useState<ItemStock | null>(null);
+  const [movimiento, setMovimiento] = useState(MOVIMIENTO_VACIO);
+  const [guardando, setGuardando] = useState(false);
+  const [errorMov, setErrorMov] = useState<string | null>(null);
+  const [ajustando, setAjustando] = useState<string | null>(null);
+  const eliminacion = useEliminar<{ id: string; nombre: string }>((o) => `/api/stock/${o.id}`, recargar);
 
   const filtrados = useMemo(() => {
-    if (!busqueda.trim()) return items;
-    const q = busqueda.toLowerCase();
-    return items.filter(
-      (i) =>
-        i.nombre.toLowerCase().includes(q) ||
-        i.categoria.toLowerCase().includes(q) ||
-        i.codigoInterno?.toLowerCase().includes(q)
-    );
+    const q = busqueda.trim().toLowerCase();
+    // Lo que falta va primero: es lo que hay que mirar.
+    const orden = { agotado: 0, bajo: 1, bien: 2 };
+    return items
+      .filter((i) => !q || i.nombre.toLowerCase().includes(q) || i.categoria.toLowerCase().includes(q) || i.codigoInterno?.toLowerCase().includes(q))
+      .sort((a, b) => orden[nivelDe(a)] - orden[nivelDe(b)] || a.nombre.localeCompare(b.nombre));
   }, [items, busqueda]);
 
-  const enAlerta = items.filter((i) => i.cantidad <= i.cantidadMinima);
+  const faltan = items.filter((i) => nivelDe(i) !== 'bien').length;
 
-  async function handleEliminar() {
-    if (!dialogoEliminar) return;
-    setEliminando(true);
-    try {
-      await fetch(`/api/stock/${dialogoEliminar.id}`, { method: 'DELETE' });
-      setDialogoEliminar(null);
-      recargar();
-    } finally { setEliminando(false); }
+  async function registrar(item: ItemStock, datos: typeof MOVIMIENTO_VACIO) {
+    await pedirApi(`/api/stock/${item.id}/movimiento`, {
+      metodo: 'POST',
+      cuerpo: datos,
+      mensajeError: 'No se pudo registrar el movimiento',
+    });
+    await recargar();
   }
 
-  async function handleMovimiento() {
-    if (!dialogoMovimiento) return;
-    setGuardandoMov(true);
+  /** Los botones + y − del tubo: un movimiento de una unidad. */
+  async function ajustar(item: ItemStock, delta: 1 | -1) {
+    setAjustando(item.id);
+    setErrorMov(null);
     try {
-      await fetch(`/api/stock/${dialogoMovimiento.id}/movimiento`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...movimiento, itemId: dialogoMovimiento.id }),
-      });
-      setDialogoMovimiento(null);
-      setMovimiento({ tipo: 'entrada', cantidad: 1, motivo: '' });
-      recargar();
-    } finally { setGuardandoMov(false); }
+      await registrar(item, { tipo: delta > 0 ? 'entrada' : 'salida', cantidad: 1, motivo: 'Ajuste rápido' });
+    } catch (e) {
+      setErrorMov((e as Error).message);
+    } finally {
+      setAjustando(null);
+    }
   }
 
-  const acciones = (
-    <Link href="/stock/nuevo" style={{ textDecoration: 'none' }}>
-      <Button variant="contained" startIcon={<AddIcon />}>Nuevo item</Button>
-    </Link>
-  );
+  async function guardarMovimiento() {
+    if (!abierto) return;
+    setGuardando(true);
+    setErrorMov(null);
+    try {
+      await registrar(abierto, movimiento);
+      cerrar();
+    } catch (e) {
+      // P. ej. una salida mayor al stock disponible: el diálogo queda abierto con el motivo.
+      setErrorMov((e as Error).message);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  function cerrar() {
+    setAbierto(null);
+    setMovimiento(MOVIMIENTO_VACIO);
+    setErrorMov(null);
+  }
 
   return (
-    <PageContainer titulo="Stock" subtitulo={`${items.length} items en inventario`} acciones={acciones}>
+    <PageContainer titulo="Stock" acciones={<Pildora href="/stock/nuevo">Insumo</Pildora>}>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {errorMov && !abierto && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setErrorMov(null)}>{errorMov}</Alert>}
 
-      {/* Tabs */}
-      <Box sx={{ borderBottom: '1px solid #E2E8F0', mb: 3 }}>
-        <Tabs
-          value={tab}
-          onChange={(_, v) => setTab(v)}
-          sx={{
-            '& .MuiTab-root': { textTransform: 'none', fontWeight: 500, fontSize: '0.875rem', minHeight: 44 },
-            '& .Mui-selected': { fontWeight: 700 },
-          }}
-        >
-          {TABS.map((t, i) => (
-            <Tab
-              key={i}
-              label={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                  {t.icon}
-                  <span>{t.label}</span>
-                  {i === 1 && enAlerta.length > 0 && (
-                    <Chip label={enAlerta.length} size="small" sx={{ height: 18, fontSize: '0.65rem', backgroundColor: '#FEE2E2', color: '#991B1B', fontWeight: 700, ml: 0.5 }} />
-                  )}
-                </Box>
-              }
-            />
-          ))}
-        </Tabs>
-      </Box>
+      <Tabs className="in" style={{ '--n': 1 } as React.CSSProperties} value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3 }}>
+        {TABS.map((t) => <Tab key={t.label} icon={t.icon} iconPosition="start" label={t.label} />)}
+      </Tabs>
 
-      {/* Tab 0: Inventario */}
       {tab === 0 && (
-        <Card sx={{ overflow: 'hidden' }}>
-          <Box sx={{ p: 2, borderBottom: '1px solid #E2E8F0', display: 'flex', gap: 2 }}>
-            <TextField
-              placeholder="Buscar por nombre, categoría, código…"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              slotProps={{ input: { startAdornment: <SearchIcon sx={{ color: '#94A3B8', mr: 1, fontSize: 20 }} /> } }}
-              sx={{ maxWidth: 400, flex: 1 }}
-            />
+        <>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+            <Box sx={{ flex: '1 1 16rem', maxWidth: '34rem' }}>
+              <Buscador valor={busqueda} onCambio={setBusqueda} ayuda="Buscar insumo" />
+            </Box>
+            {faltan > 0
+              ? <Etiqueta tono="acento">{faltan === 1 ? 'Falta 1' : `Faltan ${faltan}`}</Etiqueta>
+              : items.length > 0 && <Etiqueta tono="ok">Todo bien</Etiqueta>}
           </Box>
 
           {cargando ? (
-            <LoadingScreen mensaje="Cargando inventario..." />
-          ) : filtrados.length === 0 ? (
+            <LoadingScreen />
+          ) : items.length === 0 ? (
             <EmptyState
-              titulo={busqueda ? 'Sin resultados' : 'Sin items en stock'}
-              descripcion={busqueda ? `Sin resultados para "${busqueda}"` : 'Agregá el primer item al inventario'}
-              icono={<InventoryOutlinedIcon sx={{ fontSize: 'inherit' }} />}
-              accion={!busqueda ? { label: 'Agregar item', onClick: () => router.push('/stock/nuevo') } : undefined}
+              titulo="Estante vacío"
+              descripcion="Cargá el primer insumo."
+              icono={<ScienceRoundedIcon fontSize="inherit" />}
+              accion={{ label: 'Insumo', onClick: () => router.push('/stock/nuevo') }}
             />
+          ) : filtrados.length === 0 ? (
+            <EmptyState titulo="Nada con ese nombre" icono={<SearchOffRoundedIcon fontSize="inherit" />} />
           ) : (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Item</TableCell>
-                    <TableCell>Categoría</TableCell>
-                    <TableCell>Cantidad</TableCell>
-                    <TableCell>Estado</TableCell>
-                    <TableCell>Proveedor</TableCell>
-                    <TableCell>Ubicación</TableCell>
-                    <TableCell align="right">Acciones</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filtrados.map((item) => {
-                    const nivel = nivelStock(item);
-                    return (
-                      <TableRow key={item.id}>
-                        <TableCell>
-                          <Box>
-                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#0F172A' }}>
-                              {item.nombre}
-                            </Typography>
-                            {item.codigoInterno && (
-                              <Typography variant="caption" sx={{ color: '#94A3B8', fontFamily: 'monospace' }}>
-                                #{item.codigoInterno}
-                              </Typography>
-                            )}
-                            {item.lote && (
-                              <Typography variant="caption" sx={{ color: '#94A3B8', display: 'block' }}>
-                                Lote: {item.lote}
-                              </Typography>
-                            )}
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Chip label={item.categoria} size="small" sx={{ backgroundColor: '#F1F5F9', color: '#475569', fontSize: '0.7rem' }} />
-                        </TableCell>
-                        <TableCell>
-                          <Box sx={{ minWidth: 120 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                              <Typography variant="body2" sx={{ fontWeight: 700, color: '#0F172A' }}>{item.cantidad}</Typography>
-                              <Typography variant="caption" sx={{ color: '#94A3B8' }}>{item.unidad}</Typography>
-                            </Box>
-                            <LinearProgress
-                              variant="determinate"
-                              value={nivel.pct}
-                              sx={{ backgroundColor: '#F1F5F9', '& .MuiLinearProgress-bar': { backgroundColor: nivel.color } }}
-                            />
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Chip label={nivel.label} size="small" sx={{ backgroundColor: nivel.bg, color: nivel.color, fontWeight: 600, fontSize: '0.7rem' }} />
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" sx={{ color: item.proveedor ? '#475569' : '#CBD5E1' }}>
-                            {item.proveedor || '—'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" sx={{ color: item.ubicacion ? '#475569' : '#CBD5E1' }}>
-                            {item.ubicacion || '—'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
-                            <Tooltip title="Registrar movimiento">
-                              <IconButton size="small" sx={{ color: '#10B981' }} onClick={() => setDialogoMovimiento(item)}>
-                                <SwapVertIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Editar">
-                              <IconButton size="small" onClick={() => router.push(`/stock/${item.id}/editar`)}>
-                                <EditOutlinedIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Eliminar">
-                              <IconButton size="small" sx={{ color: '#EF4444' }} onClick={() => setDialogoEliminar({ id: item.id, nombre: item.nombre })}>
-                                <DeleteOutlinedIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(11rem, 1fr))', gap: 2, mt: 3 }}>
+              {filtrados.map((item, i) => (
+                <Tubo key={item.id} item={item} orden={i} ocupado={ajustando === item.id} onAjustar={ajustar} onAbrir={setAbierto} />
+              ))}
+            </Box>
           )}
-        </Card>
+        </>
       )}
 
-      {/* Tab 1: Alertas */}
       {tab === 1 && <TabAlertas items={items} />}
-
-      {/* Tab 2: Movimientos */}
       {tab === 2 && <TabMovimientos />}
-
-      {/* Tab 3: Factura Demo */}
       {tab === 3 && <TabFacturaDemo onIngreso={recargar} />}
-
-      {/* Tab 4: Procedimiento */}
       {tab === 4 && <TabProcedimiento items={items} onEjecucion={recargar} />}
 
-      {/* Dialogo movimiento */}
-      <Dialog open={!!dialogoMovimiento} onClose={() => setDialogoMovimiento(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Registrar movimiento — {dialogoMovimiento?.nombre}</DialogTitle>
-        <DialogContent sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* Detalle de un insumo: movimiento con cantidad y motivo, editar, eliminar. */}
+      <Dialog open={!!abierto} onClose={cerrar} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>{abierto?.nombre}</Box>
+          <Tooltip title="Editar">
+            <IconButton component={Link} href={`/stock/${abierto?.id}/editar`} aria-label="Editar"><EditRoundedIcon /></IconButton>
+          </Tooltip>
+          <Tooltip title="Eliminar">
+            <IconButton
+              aria-label="Eliminar"
+              onClick={() => { if (abierto) { eliminacion.pedir({ id: abierto.id, nombre: abierto.nombre }); cerrar(); } }}
+            >
+              <DeleteRoundedIcon />
+            </IconButton>
+          </Tooltip>
+        </DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Etiqueta>{abierto?.cantidad} {abierto?.unidad}</Etiqueta>
+            <Etiqueta>Mínimo {abierto?.cantidadMinima}</Etiqueta>
+            {abierto?.ubicacion && <Etiqueta tono="lila">{abierto.ubicacion}</Etiqueta>}
+          </Box>
           <TextField
-            label="Tipo de movimiento"
+            label="Movimiento"
             select
             value={movimiento.tipo}
-            onChange={(e) => setMovimiento((p) => ({ ...p, tipo: e.target.value as 'entrada' | 'salida' | 'ajuste' }))}
+            onChange={(e) => setMovimiento((p) => ({ ...p, tipo: e.target.value as TipoMovimientoStock }))}
             fullWidth
-            size="small"
           >
-            <MenuItem value="entrada">Entrada (agregar stock)</MenuItem>
-            <MenuItem value="salida">Salida (retirar stock)</MenuItem>
-            <MenuItem value="ajuste">Ajuste (definir cantidad exacta)</MenuItem>
+            <MenuItem value="entrada">Entra</MenuItem>
+            <MenuItem value="salida">Sale</MenuItem>
+            <MenuItem value="ajuste">Quedan exactamente</MenuItem>
           </TextField>
           <TextField
             label="Cantidad"
@@ -297,7 +202,6 @@ export default function StockPage() {
             value={movimiento.cantidad}
             onChange={(e) => setMovimiento((p) => ({ ...p, cantidad: parseInt(e.target.value) || 0 }))}
             fullWidth
-            size="small"
             slotProps={{ htmlInput: { min: 0 } }}
           />
           <TextField
@@ -305,26 +209,31 @@ export default function StockPage() {
             value={movimiento.motivo}
             onChange={(e) => setMovimiento((p) => ({ ...p, motivo: e.target.value }))}
             fullWidth
-            size="small"
-            placeholder="Ej: Compra, uso en consultorio, vencimiento…"
+            placeholder="Compra, uso, vencimiento…"
           />
+          {errorMov && <Alert severity="error">{errorMov}</Alert>}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-          <Button variant="outlined" onClick={() => setDialogoMovimiento(null)} disabled={guardandoMov}>Cancelar</Button>
-          <Button variant="contained" onClick={handleMovimiento} disabled={guardandoMov || movimiento.cantidad <= 0}>
-            {guardandoMov ? 'Guardando...' : 'Registrar'}
+          <Button variant="outlined" onClick={cerrar} disabled={guardando}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={guardarMovimiento}
+            disabled={guardando || (movimiento.tipo !== 'ajuste' && movimiento.cantidad <= 0)}
+          >
+            {guardando ? 'Guardando…' : 'Guardar'}
           </Button>
         </DialogActions>
       </Dialog>
 
       <ConfirmarDialogo
-        abierto={!!dialogoEliminar}
-        titulo="Eliminar item"
-        descripcion={`¿Estás seguro de que deseas eliminar "${dialogoEliminar?.nombre}"? Esta acción no se puede deshacer.`}
+        abierto={!!eliminacion.objetivo}
+        titulo="Eliminar insumo"
+        descripcion={`¿Eliminar "${eliminacion.objetivo?.nombre}"? No se puede deshacer.`}
         textoConfirmar="Eliminar"
-        cargando={eliminando}
-        onConfirmar={handleEliminar}
-        onCancelar={() => setDialogoEliminar(null)}
+        cargando={eliminacion.eliminando}
+        error={eliminacion.error}
+        onConfirmar={eliminacion.confirmar}
+        onCancelar={eliminacion.cancelar}
       />
     </PageContainer>
   );

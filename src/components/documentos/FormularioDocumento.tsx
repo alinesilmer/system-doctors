@@ -15,10 +15,10 @@ import InputLabel from '@mui/material/InputLabel';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Switch from '@mui/material/Switch';
 import Alert from '@mui/material/Alert';
-import Chip from '@mui/material/Chip';
 import Autocomplete from '@mui/material/Autocomplete';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { pedirApi } from '@/lib/api/cliente';
 import type { Documento, TipoDocumento } from '@/lib/types';
 
 const TIPOS: { value: TipoDocumento; label: string }[] = [
@@ -59,14 +59,11 @@ export default function FormularioDocumento({ modo, inicial }: Props) {
     setGuardando(true);
     try {
       const payload = { titulo: titulo.trim(), tipo, descripcion: descripcion.trim(), contenido: contenido.trim(), etiquetas, activo };
-      const res = modo === 'crear'
-        ? await fetch('/api/documentos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-        : await fetch(`/api/documentos/${inicial!.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error ?? 'Error al guardar');
-      }
+      await pedirApi(modo === 'crear' ? '/api/documentos' : `/api/documentos/${inicial!.id}`, {
+        metodo: modo === 'crear' ? 'POST' : 'PATCH',
+        cuerpo: payload,
+        mensajeError: 'Error al guardar',
+      });
       router.push('/documentos');
       router.refresh();
     } catch (e) {
@@ -82,7 +79,7 @@ export default function FormularioDocumento({ modo, inicial }: Props) {
 
       <Card>
         <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, p: 3 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0F172A', mb: 0.5 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--ink)', mb: 0.5 }}>
             Información general
           </Typography>
 
@@ -140,7 +137,7 @@ export default function FormularioDocumento({ modo, inicial }: Props) {
 
       <Card>
         <CardContent sx={{ p: 3 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0F172A', mb: 2 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--ink)', mb: 2 }}>
             Contenido del documento
           </Typography>
           <TextField
@@ -153,7 +150,7 @@ export default function FormularioDocumento({ modo, inicial }: Props) {
             placeholder="Escribí aquí el texto completo del documento. Podés incluir instrucciones, cláusulas, información relevante, etc."
             sx={{ fontFamily: 'monospace' }}
           />
-          <Typography variant="caption" sx={{ color: '#94A3B8', mt: 1, display: 'block' }}>
+          <Typography variant="caption" sx={{ color: 'var(--soft)', mt: 1, display: 'block' }}>
             Tip: usá saltos de línea para separar secciones. El texto se mostrará con el formato tal como lo escribís.
           </Typography>
         </CardContent>

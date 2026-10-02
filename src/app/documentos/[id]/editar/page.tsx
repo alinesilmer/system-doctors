@@ -15,7 +15,7 @@ export default function EditarDocumentoPage({ params }: { params: Promise<{ id: 
   if (error || !documento) return <Alert severity="error">{error ?? 'Documento no encontrado'}</Alert>;
 
   return (
-    <PageContainer titulo="Editar documento" subtitulo={documento.titulo}>
+    <PageContainer volver="/documentos" titulo="Editar documento" subtitulo={documento.titulo}>
       <FormularioDocumento modo="editar" inicial={documento} />
     </PageContainer>
   );

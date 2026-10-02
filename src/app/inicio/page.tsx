@@ -1,186 +1,113 @@
 'use client';
 
-import Box from '@mui/material/Box';
-import Grid from '@mui/material/Grid';
-import Card from '@mui/material/Card';
-import Typography from '@mui/material/Typography';
-import Button from '@mui/material/Button';
-import Divider from '@mui/material/Divider';
+import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
+import Box from '@mui/material/Box';
+import Alert from '@mui/material/Alert';
+import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
+import PeopleAltRoundedIcon from '@mui/icons-material/PeopleAltRounded';
+import Inventory2RoundedIcon from '@mui/icons-material/Inventory2Rounded';
+import BedtimeRoundedIcon from '@mui/icons-material/BedtimeRounded';
 import PageContainer from '@/components/ui/PageContainer';
-import StatsCard from '@/components/ui/StatsCard';
-import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
-import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
-import InventoryOutlinedIcon from '@mui/icons-material/InventoryOutlined';
-import TodayOutlinedIcon from '@mui/icons-material/TodayOutlined';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import AddIcon from '@mui/icons-material/Add';
+import LoadingScreen from '@/components/ui/LoadingScreen';
+import EmptyState from '@/components/ui/EmptyState';
+import Bloque from '@/components/ui/Bloque';
+import Pildora from '@/components/ui/Pildora';
+import CaminoDelDia from '@/components/inicio/CaminoDelDia';
+import { Mascota } from '@/components/ui/Mascota';
+import { EstetoscopioIcon, PulsoIcon } from '@/components/ui/iconos';
+import { cifra, flotante, redondo, rotulo } from '@/components/ui/estilos';
+import { useResumenInicio } from '@/hooks/useResumenInicio';
+import { useAuth } from '@/contexts/AuthContext';
 
-const ACCESOS_RAPIDOS = [
-  { label: 'Nuevo Paciente', href: '/pacientes/nuevo', color: '#2563EB' },
-  { label: 'Nuevo Turno', href: '/turnos/nuevo', color: '#10B981' },
-  { label: 'Registrar Stock', href: '/stock/nuevo', color: '#F59E0B' },
-];
+// La hora del navegador no existe en el servidor: allí se asume de día.
+const sinSuscripcion = () => () => {};
+const esDeNoche = () => { const h = new Date().getHours(); return h >= 20 || h < 6; };
 
-export default function DashboardPage() {
-  const hoy = new Date().toLocaleDateString('es-AR', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+/** Sol que gira despacio de día; luna quieta de noche. */
+function Astro() {
+  const noche = useSyncExternalStore(sinSuscripcion, esDeNoche, () => false);
+  if (noche) return <BedtimeRoundedIcon sx={{ fontSize: '3.2rem', color: 'var(--glow)' }} />;
 
   return (
-    <PageContainer titulo="Panel Principal" subtitulo={`Hoy es ${hoy}`}>
-      {/* Stats */}
-      <Grid container spacing={2.5} sx={{ mb: 3 }}>
-        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-          <StatsCard
-            titulo="Pacientes registrados"
-            valor="—"
-            icono={<PeopleAltOutlinedIcon />}
-            color="#2563EB"
-            bgColor="#EFF6FF"
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-          <StatsCard
-            titulo="Turnos hoy"
-            valor="—"
-            icono={<TodayOutlinedIcon />}
-            color="#10B981"
-            bgColor="#D1FAE5"
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-          <StatsCard
-            titulo="Turnos esta semana"
-            valor="—"
-            icono={<CalendarMonthOutlinedIcon />}
-            color="#8B5CF6"
-            bgColor="#EDE9FE"
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-          <StatsCard
-            titulo="Items en stock"
-            valor="—"
-            icono={<InventoryOutlinedIcon />}
-            color="#F59E0B"
-            bgColor="#FEF3C7"
-          />
-        </Grid>
-      </Grid>
+    <Box component="svg" viewBox="0 0 60 60" aria-hidden sx={{ width: '3.5rem', height: '3.5rem', flexShrink: 0, animation: 'spin 18s linear infinite' }}>
+      <g stroke="var(--glow)" strokeWidth={5} strokeLinecap="round">
+        <path d="M30 4v8M30 48v8M4 30h8M48 30h8M11.6 11.6l5.7 5.7M42.7 42.7l5.7 5.7M11.6 48.4l5.7-5.7M42.7 17.3l5.7-5.7" />
+      </g>
+      <circle cx={30} cy={30} r={12} fill="var(--glow)" />
+    </Box>
+  );
+}
 
-      <Grid container spacing={2.5}>
-        {/* Accesos rápidos */}
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Card sx={{ p: 2.5 }}>
-            <Typography variant="h5" sx={{ mb: 2, color: '#0F172A' }}>
-              Accesos rápidos
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-              {ACCESOS_RAPIDOS.map((item) => (
-                <Link key={item.href} href={item.href} style={{ textDecoration: 'none' }}>
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    startIcon={<AddIcon />}
-                    sx={{
-                      justifyContent: 'flex-start',
-                      borderColor: '#E2E8F0',
-                      color: item.color,
-                      fontWeight: 500,
-                      '&:hover': { borderColor: item.color, backgroundColor: `${item.color}08` },
-                    }}
-                  >
-                    {item.label}
-                  </Button>
-                </Link>
-              ))}
-            </Box>
-          </Card>
-        </Grid>
+export default function InicioPage() {
+  const { perfil } = useAuth();
+  const resumen = useResumenInicio();
+  const { proximo, turnosHoy, stockBajo } = resumen;
+  // "Dra. Ana Pérez" → "Ana": el tratamiento no es el nombre (y su punto chocaría con el del título).
+  const palabras = perfil?.nombre?.split(' ').filter(Boolean) ?? [];
+  const nombre = palabras.find((p) => !p.endsWith('.')) ?? palabras[0]?.replace(/.$/, '') ?? '';
 
-        {/* Navegación a módulos */}
-        <Grid size={{ xs: 12, md: 8 }}>
-          <Card sx={{ p: 2.5 }}>
-            <Typography variant="h5" sx={{ mb: 2, color: '#0F172A' }}>
-              Módulos del sistema
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {[
-                {
-                  href: '/pacientes',
-                  titulo: 'Pacientes',
-                  desc: 'Gestión de pacientes, fichas, historia clínica',
-                  icono: <PeopleAltOutlinedIcon sx={{ fontSize: 22 }} />,
-                  color: '#2563EB',
-                  bg: '#EFF6FF',
-                },
-                {
-                  href: '/turnos',
-                  titulo: 'Turnos',
-                  desc: 'Agenda, calendario y gestión de citas',
-                  icono: <CalendarMonthOutlinedIcon sx={{ fontSize: 22 }} />,
-                  color: '#10B981',
-                  bg: '#D1FAE5',
-                },
-                {
-                  href: '/stock',
-                  titulo: 'Stock',
-                  desc: 'Control de inventario y movimientos',
-                  icono: <InventoryOutlinedIcon sx={{ fontSize: 22 }} />,
-                  color: '#F59E0B',
-                  bg: '#FEF3C7',
-                },
-              ].map((mod, i, arr) => (
-                <Link key={mod.href} href={mod.href} style={{ textDecoration: 'none' }}>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 2,
-                      py: 2,
-                      px: 1,
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      transition: 'background 0.15s',
-                      '&:hover': { backgroundColor: '#F8FAFC' },
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: '10px',
-                        backgroundColor: mod.bg,
-                        color: mod.color,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {mod.icono}
-                    </Box>
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="h5" sx={{ color: '#0F172A' }}>
-                        {mod.titulo}
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#64748B' }}>
-                        {mod.desc}
-                      </Typography>
-                    </Box>
-                    <ArrowForwardIcon sx={{ color: '#CBD5E1', fontSize: 18 }} />
-                  </Box>
-                  {i < arr.length - 1 && <Divider sx={{ borderColor: '#F1F5F9' }} />}
-                </Link>
-              ))}
+  const titulo = (
+    <>Hola{nombre && <>, <Box component="span" sx={{ color: 'var(--pink)' }}>{nombre}</Box></>}</>
+  );
+
+  return (
+    <PageContainer titulo={titulo} icono={<Astro />}>
+      {resumen.error && <Alert severity="error" sx={{ mb: 2 }}>{resumen.error}</Alert>}
+
+      {resumen.cargando ? (
+        <LoadingScreen />
+      ) : (
+        <>
+          {turnosHoy.length === 0 ? (
+            <EmptyState titulo="Día libre" descripcion="Hoy no hay turnos." ilustracion={<Mascota animo="dormida" />} />
+          ) : (
+            <Box className="in" style={{ '--n': 1 } as React.CSSProperties}>
+              <CaminoDelDia turnos={turnosHoy} proximo={proximo} />
             </Box>
-          </Card>
-        </Grid>
-      </Grid>
+          )}
+
+          {proximo && (
+            <Box
+              className="in"
+              style={{ '--n': 2 } as React.CSSProperties}
+              sx={{ ...flotante, display: 'inline-flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', p: '1rem 1.25rem 1rem 1.5rem', mt: 1 }}
+            >
+              <Box sx={{ width: '3.2rem', height: '3.2rem', borderRadius: '50%', display: 'grid', placeItems: 'center', backgroundColor: 'var(--sun)', color: 'var(--on-tint)' }}>
+                <EstetoscopioIcon />
+              </Box>
+              <Box>
+                <Box sx={rotulo}>Sigue</Box>
+                <Box sx={{ ...cifra, fontSize: 'clamp(1.5rem, 4vw, 2.2rem)', lineHeight: 1.05 }}>{proximo.pacienteNombre ?? 'Paciente'}</Box>
+              </Box>
+              <Box component="time" sx={{ ...cifra, fontSize: 'clamp(1.5rem, 4vw, 2.2rem)', color: 'var(--pink)' }}>{proximo.horaInicio}</Box>
+              <Box component={Link} href={`/pacientes/${proximo.pacienteId}`} aria-label="Abrir ficha" sx={redondo}>
+                <ArrowForwardRoundedIcon />
+              </Box>
+            </Box>
+          )}
+
+          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, mt: 4 }}>
+            <Bloque titulo="Hoy" valor={turnosHoy.length} icono={<PulsoIcon />} href="/turnos" orden={3} />
+            <Bloque titulo="Pacientes" valor={resumen.pacientes} icono={<PeopleAltRoundedIcon />} href="/pacientes" tono="var(--mint)" orden={4} />
+            <Bloque
+              titulo={stockBajo.length === 1 ? 'Falta' : 'Faltan'}
+              valor={stockBajo.length}
+              icono={<Inventory2RoundedIcon />}
+              href="/stock"
+              tono="var(--sun)"
+              atencion={stockBajo.length > 0}
+              orden={5}
+            />
+          </Box>
+
+          <Box className="in" style={{ '--n': 6 } as React.CSSProperties} sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mt: 4 }}>
+            <Pildora href="/pacientes/nuevo">Paciente</Pildora>
+            <Pildora href="/turnos/nuevo">Turno</Pildora>
+            <Pildora href="/stock/nuevo">Stock</Pildora>
+          </Box>
+        </>
+      )}
     </PageContainer>
   );
 }

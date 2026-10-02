@@ -1,255 +1,183 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
-import Card from '@mui/material/Card';
-import Typography from '@mui/material/Typography';
-import Button from '@mui/material/Button';
-import TextField from '@mui/material/TextField';
-import MenuItem from '@mui/material/MenuItem';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableContainer from '@mui/material/TableContainer';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
+import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
-import Alert from '@mui/material/Alert';
-import ToggleButton from '@mui/material/ToggleButton';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
-import AddIcon from '@mui/icons-material/Add';
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
-import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
-import ViewListOutlinedIcon from '@mui/icons-material/ViewListOutlined';
-import TodayIcon from '@mui/icons-material/Today';
-import CalendarioTurnos from '@/components/turnos/CalendarioTurnos';
+import ChevronLeftRoundedIcon from '@mui/icons-material/ChevronLeftRounded';
+import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
+import BeachAccessRoundedIcon from '@mui/icons-material/BeachAccessRounded';
 import PageContainer from '@/components/ui/PageContainer';
-import EmptyState from '@/components/ui/EmptyState';
 import LoadingScreen from '@/components/ui/LoadingScreen';
+import EmptyState from '@/components/ui/EmptyState';
 import ConfirmarDialogo from '@/components/ui/ConfirmarDialogo';
 import EstadoChip from '@/components/ui/EstadoChip';
-import { useTurnos } from '@/hooks/useTurnos';
-import type { EstadoTurno, Turno } from '@/lib/types';
+import Etiqueta from '@/components/ui/Etiqueta';
+import Pildora from '@/components/ui/Pildora';
+import { Camino, Parada, type EstadoParada } from '@/components/ui/Camino';
+import { DISPLAY, redondoClaro, tarjeta } from '@/components/ui/estilos';
+import { useColeccion } from '@/hooks/useRecurso';
+import { useEliminar } from '@/hooks/useEliminar';
+import { useAhora } from '@/hooks/useAhora';
+import { aFechaIso, diasDeLaSemana, hoyIso } from '@/lib/fechas';
+import type { Turno } from '@/lib/types';
 
-const ESTADOS_FILTRO: { value: string; label: string }[] = [
-  { value: 'todos', label: 'Todos' },
-  { value: 'pendiente', label: 'Pendientes' },
-  { value: 'confirmado', label: 'Confirmados' },
-  { value: 'cancelado', label: 'Cancelados' },
-  { value: 'completado', label: 'Completados' },
-];
+const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
-function formatFecha(fecha: string) {
-  if (!fecha) return '—';
-  return new Date(fecha + 'T00:00:00').toLocaleDateString('es-AR', {
-    weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
-  });
+/** La misma fecha, `dias` días después (o antes). */
+function mover(fecha: string, dias: number): string {
+  const d = new Date(`${fecha}T00:00:00`);
+  d.setDate(d.getDate() + dias);
+  return aFechaIso(d);
 }
 
-function agruparPorFecha(turnos: Turno[]) {
-  const mapa = new Map<string, Turno[]>();
-  for (const t of turnos) {
-    const arr = mapa.get(t.fecha) ?? [];
-    arr.push(t);
-    mapa.set(t.fecha, arr);
-  }
-  return Array.from(mapa.entries()).sort(([a], [b]) => a.localeCompare(b));
+function tituloDe(fecha: string, hoy: string): string {
+  if (fecha === hoy) return 'Hoy';
+  if (fecha === mover(hoy, 1)) return 'Mañana';
+  const texto = new Date(`${fecha}T00:00:00`).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
 export default function TurnosPage() {
-  const router = useRouter();
-  const { turnos, cargando, error, recargar } = useTurnos();
-  const [vista, setVista] = useState<'lista' | 'calendario'>('lista');
-  const [estadoFiltro, setEstadoFiltro] = useState('todos');
-  const [busqueda, setBusqueda] = useState('');
-  const [dialogoEliminar, setDialogoEliminar] = useState<{ id: string } | null>(null);
-  const [eliminando, setEliminando] = useState(false);
+  const hoy = hoyIso();
+  const [dia, setDia] = useState(hoy);
+  const semana = useMemo(() => diasDeLaSemana(dia), [dia]);
 
-  const filtrados = useMemo(() => {
-    return turnos.filter((t) => {
-      const matchEstado = estadoFiltro === 'todos' || t.estado === estadoFiltro;
-      const q = busqueda.toLowerCase();
-      const matchBusqueda = !q || t.pacienteNombre?.toLowerCase().includes(q) || t.motivo.toLowerCase().includes(q);
-      return matchEstado && matchBusqueda;
-    });
-  }, [turnos, estadoFiltro, busqueda]);
+  // Sólo la semana a la vista; cambiar de semana trae la siguiente.
+  const { items: turnos, cargando, error, recargar } = useColeccion<Turno>(
+    `/api/turnos?desde=${semana[0]}&hasta=${semana[6]}`,
+    'Error al cargar turnos',
+  );
+  const eliminacion = useEliminar<{ id: string }>((o) => `/api/turnos/${o.id}`, recargar);
 
-  async function handleEliminar() {
-    if (!dialogoEliminar) return;
-    setEliminando(true);
-    try {
-      await fetch(`/api/turnos/${dialogoEliminar.id}`, { method: 'DELETE' });
-      setDialogoEliminar(null);
-      recargar();
-    } finally {
-      setEliminando(false);
-    }
+  const porDia = useMemo(() => {
+    const mapa = new Map<string, Turno[]>();
+    for (const t of turnos) mapa.set(t.fecha, [...(mapa.get(t.fecha) ?? []), t]);
+    return mapa;
+  }, [turnos]);
+
+  const delDia = porDia.get(dia) ?? [];
+  const ahora = useAhora();
+  const sigue = dia === hoy
+    ? delDia.find((t) => t.horaInicio >= ahora && t.estado !== 'completado' && t.estado !== 'cancelado')
+    : undefined;
+
+  function estadoDe(t: Turno): EstadoParada {
+    if (t.id === sigue?.id) return 'sigue';
+    if (t.estado === 'completado' || dia < hoy || (dia === hoy && t.horaInicio < ahora)) return 'hecha';
+    return 'pendiente';
   }
 
-  const acciones = (
-    <Link href="/turnos/nuevo" style={{ textDecoration: 'none' }}>
-      <Button variant="contained" startIcon={<AddIcon />}>
-        Nuevo turno
-      </Button>
-    </Link>
-  );
-
-  const grupos = agruparPorFecha(filtrados);
-  const hoy = new Date().toISOString().slice(0, 10);
-
   return (
-    <PageContainer titulo="Turnos" subtitulo={`${turnos.length} turnos en total`} acciones={acciones}>
+    <PageContainer titulo="Turnos" acciones={<Pildora href="/turnos/nuevo">Turno</Pildora>}>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      <Card sx={{ overflow: 'hidden' }}>
-        {/* Filtros */}
-        <Box sx={{ p: 2, borderBottom: '1px solid #E2E8F0', display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-          <TextField
-            placeholder="Buscar paciente o motivo…"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            size="small"
-            sx={{ flex: 1, minWidth: 200, maxWidth: 320 }}
-          />
-          <TextField
-            select
-            value={estadoFiltro}
-            onChange={(e) => setEstadoFiltro(e.target.value)}
-            size="small"
-            sx={{ minWidth: 140 }}
-          >
-            {ESTADOS_FILTRO.map((op) => (
-              <MenuItem key={op.value} value={op.value}>{op.label}</MenuItem>
-            ))}
-          </TextField>
-          <ToggleButtonGroup
-            value={vista}
-            exclusive
-            onChange={(_, v) => v && setVista(v)}
-            size="small"
-            sx={{ ml: 'auto' }}
-          >
-            <ToggleButton value="lista" sx={{ px: 1.5 }}>
-              <Tooltip title="Vista lista"><ViewListOutlinedIcon fontSize="small" /></Tooltip>
-            </ToggleButton>
-            <ToggleButton value="calendario" sx={{ px: 1.5 }}>
-              <Tooltip title="Vista calendario"><CalendarMonthOutlinedIcon fontSize="small" /></Tooltip>
-            </ToggleButton>
-          </ToggleButtonGroup>
-        </Box>
-
-        {cargando ? (
-          <LoadingScreen mensaje="Cargando turnos..." />
-        ) : filtrados.length === 0 ? (
-          <EmptyState
-            titulo="Sin turnos"
-            descripcion="No hay turnos que coincidan con los filtros seleccionados"
-            icono={<CalendarMonthOutlinedIcon sx={{ fontSize: 'inherit' }} />}
-            accion={{ label: 'Nuevo turno', onClick: () => router.push('/turnos/nuevo') }}
-          />
-        ) : vista === 'lista' ? (
-          // Vista agrupada por fecha
-          <Box>
-            {grupos.map(([fecha, items]) => (
-              <Box key={fecha}>
-                <Box
-                  sx={{
-                    px: 2,
-                    py: 1,
-                    backgroundColor: fecha === hoy ? '#EFF6FF' : '#F8FAFC',
-                    borderBottom: '1px solid #E2E8F0',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                  }}
-                >
-                  {fecha === hoy && <TodayIcon sx={{ fontSize: 16, color: '#2563EB' }} />}
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      fontWeight: 700,
-                      color: fecha === hoy ? '#1D4ED8' : '#64748B',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em',
-                    }}
-                  >
-                    {fecha === hoy ? 'HOY — ' : ''}{formatFecha(fecha)}
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: '#94A3B8', ml: 0.5 }}>
-                    ({items.length} turno{items.length !== 1 ? 's' : ''})
-                  </Typography>
-                </Box>
-                <TableContainer>
-                  <Table size="small">
-                    <TableBody>
-                      {items.map((t) => (
-                        <TableRow key={t.id}>
-                          <TableCell sx={{ width: 100 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#0F172A' }}>
-                              {t.horaInicio}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: '#94A3B8' }}>
-                              — {t.horaFin}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#0F172A' }}>
-                              {t.pacienteNombre ?? t.pacienteId}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: '#64748B' }}>
-                              {t.motivo}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <EstadoChip estado={t.estado} />
-                          </TableCell>
-                          <TableCell align="right">
-                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
-                              <Tooltip title="Editar">
-                                <IconButton size="small" onClick={() => router.push(`/turnos/${t.id}/editar`)}>
-                                  <EditOutlinedIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Eliminar">
-                                <IconButton
-                                  size="small"
-                                  sx={{ color: '#EF4444' }}
-                                  onClick={() => setDialogoEliminar({ id: t.id })}
-                                >
-                                  <DeleteOutlinedIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            </Box>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Box>
-            ))}
+      {/* La semana: un globo por día, un punto por turno. */}
+      <Box className="in" style={{ '--n': 1 } as React.CSSProperties} sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1.5 } }}>
+        <Tooltip title="Semana anterior">
+          <Box component="button" aria-label="Semana anterior" onClick={() => setDia(mover(dia, -7))} sx={{ ...redondoClaro, width: '2.6rem', height: '2.6rem' }}>
+            <ChevronLeftRoundedIcon />
           </Box>
-        ) : (
-          <CalendarioTurnos
-            turnos={filtrados}
-            onEditar={(id) => router.push(`/turnos/${id}/editar`)}
-            onEliminar={(id) => setDialogoEliminar({ id })}
-          />
+        </Tooltip>
+        <Box sx={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: { xs: 0.5, sm: 1 } }}>
+          {semana.map((fecha, i) => {
+            const cantidad = (porDia.get(fecha) ?? []).filter((t) => t.estado !== 'cancelado').length;
+            const elegido = fecha === dia;
+            const esHoy = fecha === hoy;
+            return (
+              <Box
+                key={fecha}
+                component="button"
+                onClick={() => setDia(fecha)}
+                aria-pressed={elegido}
+                aria-label={`${tituloDe(fecha, hoy)}, ${cantidad} turnos`}
+                sx={{
+                  display: 'grid', justifyItems: 'center', gap: '0.15rem', py: 1.25, px: 0.25,
+                  border: 0, cursor: 'pointer', font: 'inherit', borderRadius: '1.5rem',
+                  backgroundColor: elegido ? 'var(--solid)' : esHoy ? 'var(--sun)' : 'var(--card)',
+                  color: elegido ? 'var(--on-solid)' : esHoy ? 'var(--on-tint)' : 'var(--ink)',
+                  transition: 'transform 0.25s var(--spring), background-color 0.2s, color 0.2s',
+                  '&:hover': { transform: 'translateY(-4px)' },
+                }}
+              >
+                <Box sx={{ fontSize: { xs: '0.62rem', sm: '0.75rem' }, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.7 }}>{DIAS[i]}</Box>
+                <Box sx={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: { xs: '1.2rem', sm: '1.7rem' }, lineHeight: 1 }}>{Number(fecha.slice(8))}</Box>
+                <Box sx={{ display: 'flex', gap: '3px', height: 6 }}>
+                  {Array.from({ length: Math.min(cantidad, 5) }, (_, k) => (
+                    <Box key={k} sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'var(--pink)' }} />
+                  ))}
+                </Box>
+              </Box>
+            );
+          })}
+        </Box>
+        <Tooltip title="Semana siguiente">
+          <Box component="button" aria-label="Semana siguiente" onClick={() => setDia(mover(dia, 7))} sx={{ ...redondoClaro, width: '2.6rem', height: '2.6rem' }}>
+            <ChevronRightRoundedIcon />
+          </Box>
+        </Tooltip>
+      </Box>
+
+      <Box className="in" style={{ '--n': 2 } as React.CSSProperties} sx={{ display: 'flex', alignItems: 'baseline', gap: 1.5, flexWrap: 'wrap', mt: 4, mb: 1 }}>
+        <Box component="h2" sx={{ m: 0, fontFamily: DISPLAY, fontWeight: 800, fontSize: '1.6rem', lineHeight: 1.1 }}>{tituloDe(dia, hoy)}</Box>
+        <Box sx={{ color: 'var(--soft)', fontWeight: 800 }}>{delDia.length === 1 ? '1 turno' : `${delDia.length} turnos`}</Box>
+        {dia !== hoy && (
+          <Box component="button" onClick={() => setDia(hoy)} sx={{ border: 0, background: 'none', cursor: 'pointer', font: 'inherit', fontWeight: 800, color: 'var(--pink)', p: 0 }}>
+            Ir a hoy
+          </Box>
         )}
-      </Card>
+      </Box>
+
+      {cargando ? (
+        <LoadingScreen />
+      ) : delDia.length === 0 ? (
+        <EmptyState titulo="Día libre" icono={<BeachAccessRoundedIcon fontSize="inherit" />} />
+      ) : (
+        // La clave reinicia la entrada escalonada al cambiar de día.
+        <Box key={dia} sx={{ ...tarjeta, py: 1, px: { xs: 1.5, sm: 3 }, maxWidth: '48rem' }}>
+          <Camino>
+            {delDia.map((t, i) => (
+              <Parada
+                key={t.id}
+                orden={i}
+                estado={estadoDe(t)}
+                marca={t.horaInicio}
+                titulo={
+                  <Box component={Link} href={`/pacientes/${t.pacienteId}`} sx={{ color: 'inherit', textDecoration: 'none', '&:hover': { color: 'var(--pink)' } }}>
+                    {t.pacienteNombre ?? 'Paciente'}
+                  </Box>
+                }
+                detalle={t.motivo}
+                fin={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    {t.id === sigue?.id ? <Etiqueta tono="acento">Sigue</Etiqueta> : <EstadoChip estado={t.estado} />}
+                    <Tooltip title="Editar">
+                      <IconButton component={Link} href={`/turnos/${t.id}/editar`} size="small" aria-label="Editar turno"><EditRoundedIcon fontSize="small" /></IconButton>
+                    </Tooltip>
+                    <Tooltip title="Eliminar">
+                      <IconButton size="small" aria-label="Eliminar turno" onClick={() => eliminacion.pedir({ id: t.id })}><DeleteRoundedIcon fontSize="small" /></IconButton>
+                    </Tooltip>
+                  </Box>
+                }
+              />
+            ))}
+          </Camino>
+        </Box>
+      )}
 
       <ConfirmarDialogo
-        abierto={!!dialogoEliminar}
+        abierto={!!eliminacion.objetivo}
         titulo="Eliminar turno"
-        descripcion="¿Estás seguro de que deseas eliminar este turno? Esta acción no se puede deshacer."
+        descripcion="¿Eliminar este turno? No se puede deshacer."
         textoConfirmar="Eliminar"
-        cargando={eliminando}
-        onConfirmar={handleEliminar}
-        onCancelar={() => setDialogoEliminar(null)}
+        cargando={eliminacion.eliminando}
+        error={eliminacion.error}
+        onConfirmar={eliminacion.confirmar}
+        onCancelar={eliminacion.cancelar}
       />
     </PageContainer>
   );

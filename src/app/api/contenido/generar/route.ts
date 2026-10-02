@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-
-const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { ErrorDeApi, leerJson, manejarErrores, ok, validar } from '@/lib/api/respuestas';
+import { generarTexto } from '@/lib/gemini';
 
 const SYSTEM_PROMPT = `You are an AI assistant specialized in generating medical marketing content for private healthcare professionals.
 
@@ -62,57 +62,38 @@ RULES:
 - Use neutral and safe medical phrasing
 - Respond ONLY with the JSON object, no extra text`;
 
-export async function POST(req: NextRequest) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 });
-  }
+const campo = z
+  .string({ error: 'Todos los campos son requeridos' })
+  .trim()
+  .min(1, 'Todos los campos son requeridos')
+  .max(300, 'Los campos no pueden superar los 300 caracteres');
 
-  const body = await req.json();
-  const { specialty, topic, platform, tone, audience, goal } = body;
+const esquemaPedido = z.object({
+  specialty: campo, topic: campo, platform: campo, tone: campo, audience: campo, goal: campo,
+});
 
-  if (!specialty || !topic || !platform || !tone || !audience || !goal) {
-    return NextResponse.json({ error: 'Todos los campos son requeridos' }, { status: 400 });
-  }
+export const POST = manejarErrores(async (req: NextRequest) => {
+  const pedido = validar(esquemaPedido, await leerJson(req));
 
-  const prompt = SYSTEM_PROMPT
-    .replace('{{specialty}}', specialty)
-    .replace('{{topic}}', topic)
-    .replace('{{platform}}', platform)
-    .replace('{{tone}}', tone)
-    .replace('{{audience}}', audience)
-    .replace('{{goal}}', goal);
+  // Reemplazo con función: un `$&` o `$1` escrito por el usuario no se interpreta como patrón.
+  const prompt = SYSTEM_PROMPT.replace(
+    /\{\{(\w+)\}\}/g,
+    (marcador, clave: string) => pedido[clave as keyof typeof pedido] ?? marcador,
+  );
 
-  const geminiRes = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.8, maxOutputTokens: 2048, thinkingConfig: { thinkingBudget: 0 } },
-    }),
+  const texto = await generarTexto([{ role: 'user', text: prompt }], {
+    temperatura: 0.8,
+    maxTokens: 2048,
+    sinRazonamiento: true,
   });
 
-  if (!geminiRes.ok) {
-    const err = await geminiRes.text();
-    return NextResponse.json({ error: `Gemini error: ${err}` }, { status: 500 });
-  }
-
-  const geminiData = await geminiRes.json();
-
-  // Gemini 2.5 thinking models return multiple parts — pick the non-thinking one
-  const parts: { text?: string; thought?: boolean }[] =
-    geminiData?.candidates?.[0]?.content?.parts ?? [];
-  const rawText: string =
-    parts.find((p) => !p.thought && p.text)?.text ??
-    parts.find((p) => p.text)?.text ?? '';
-
   // Strip markdown code fences if Gemini wraps in ```json
-  const cleaned = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  const cleaned = texto.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
 
   try {
-    const parsed = JSON.parse(cleaned);
-    return NextResponse.json({ data: parsed });
+    return ok({ data: JSON.parse(cleaned) });
   } catch {
-    return NextResponse.json({ error: 'No se pudo parsear la respuesta de IA', raw: cleaned }, { status: 500 });
+    console.error('[contenido/generar] respuesta no parseable:', cleaned.slice(0, 500));
+    throw new ErrorDeApi(502, 'La IA devolvió una respuesta inválida. Probá de nuevo.');
   }
-}
+}, 'Error al generar contenido');

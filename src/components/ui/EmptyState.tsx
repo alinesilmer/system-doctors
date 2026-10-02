@@ -1,51 +1,37 @@
+'use client';
+
 import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
-import Button from '@mui/material/Button';
-import AddIcon from '@mui/icons-material/Add';
+import { DISPLAY } from './estilos';
+import Pildora from './Pildora';
 
 interface EmptyStateProps {
   titulo: string;
   descripcion?: string;
   icono?: React.ReactNode;
+  /** Dibujo que reemplaza al ícono en círculo (la mascota, por ejemplo). */
+  ilustracion?: React.ReactNode;
   accion?: { label: string; onClick: () => void };
 }
 
-export default function EmptyState({ titulo, descripcion, icono, accion }: EmptyStateProps) {
+/** Pantalla o lista sin datos: un ícono grande, pocas palabras y qué hacer ahora. */
+export default function EmptyState({ titulo, descripcion, icono, ilustracion, accion }: EmptyStateProps) {
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        py: 10,
-        gap: 2,
-        color: '#94A3B8',
-      }}
-    >
-      {icono && (
-        <Box sx={{ fontSize: 56, opacity: 0.4, lineHeight: 1 }}>{icono}</Box>
-      )}
-      <Box sx={{ textAlign: 'center' }}>
-        <Typography variant="h5" sx={{ color: '#475569', mb: 0.5 }}>
-          {titulo}
-        </Typography>
-        {descripcion && (
-          <Typography variant="body2" sx={{ color: '#94A3B8', maxWidth: 320 }}>
-            {descripcion}
-          </Typography>
-        )}
-      </Box>
-      {accion && (
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={accion.onClick}
-          sx={{ mt: 1 }}
+    <Box className="in" sx={{ display: 'grid', justifyItems: 'center', gap: 1.5, py: 8, textAlign: 'center' }}>
+      {ilustracion}
+      {!ilustracion && icono && (
+        <Box
+          sx={{
+            width: '6rem', height: '6rem', borderRadius: '50%', display: 'grid', placeItems: 'center',
+            backgroundColor: 'var(--lila)', color: 'var(--on-tint)', fontSize: '2.8rem',
+            animation: 'hop 2.4s ease-in-out infinite',
+          }}
         >
-          {accion.label}
-        </Button>
+          {icono}
+        </Box>
       )}
+      <Box sx={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: '1.6rem', lineHeight: 1.1 }}>{titulo}</Box>
+      {descripcion && <Box sx={{ color: 'var(--soft)', maxWidth: '22rem' }}>{descripcion}</Box>}
+      {accion && <Box sx={{ mt: 1 }}><Pildora onClick={accion.onClick}>{accion.label}</Pildora></Box>}
     </Box>
   );
 }

@@ -24,12 +24,10 @@ import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
+import { pedirApi } from '@/lib/api/cliente';
+import { formatPrecio } from '@/lib/formato';
 import { usePracticas } from '@/hooks/usePracticas';
 import type { Tratamiento, ItemTratamiento, Practica } from '@/lib/types';
-
-function formatPrecio(n: number) {
-  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
-}
 
 interface Props {
   modo: 'crear' | 'editar';
@@ -103,14 +101,11 @@ export default function FormularioTratamiento({ modo, inicial }: Props) {
     setGuardando(true);
     try {
       const payload = { nombre: nombre.trim(), descripcion: descripcion.trim(), practicas: practicasSeleccionadas, precioTotal, activo };
-      const res = modo === 'crear'
-        ? await fetch('/api/tratamientos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-        : await fetch(`/api/tratamientos/${inicial!.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error ?? 'Error al guardar');
-      }
+      await pedirApi(modo === 'crear' ? '/api/tratamientos' : `/api/tratamientos/${inicial!.id}`, {
+        metodo: modo === 'crear' ? 'POST' : 'PATCH',
+        cuerpo: payload,
+        mensajeError: 'Error al guardar',
+      });
       router.push('/tratamientos');
       router.refresh();
     } catch (e) {
@@ -126,7 +121,7 @@ export default function FormularioTratamiento({ modo, inicial }: Props) {
 
       <Card>
         <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, p: 3 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0F172A' }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--ink)' }}>
             Información del tratamiento
           </Typography>
           <TextField
@@ -153,7 +148,7 @@ export default function FormularioTratamiento({ modo, inicial }: Props) {
 
       <Card>
         <CardContent sx={{ p: 3 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0F172A', mb: 2 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--ink)', mb: 2 }}>
             Prácticas incluidas
           </Typography>
 
@@ -178,7 +173,7 @@ export default function FormularioTratamiento({ modo, inicial }: Props) {
           </Box>
 
           {practicasSeleccionadas.length === 0 ? (
-            <Box sx={{ py: 4, textAlign: 'center', color: '#94A3B8', backgroundColor: '#F8FAFC', borderRadius: 2 }}>
+            <Box sx={{ py: 4, textAlign: 'center', color: 'var(--soft)', backgroundColor: 'var(--bg)', borderRadius: 2 }}>
               <Typography variant="body2">Aún no se agregaron prácticas a este tratamiento</Typography>
             </Box>
           ) : (
@@ -226,7 +221,7 @@ export default function FormularioTratamiento({ modo, inicial }: Props) {
                       </TableCell>
                       <TableCell align="center">
                         <Tooltip title="Quitar">
-                          <IconButton size="small" sx={{ color: '#EF4444' }} onClick={() => quitarPractica(p.practicaId)}>
+                          <IconButton size="small" sx={{ color: 'var(--bad)' }} onClick={() => quitarPractica(p.practicaId)}>
                             <DeleteOutlinedIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
@@ -236,10 +231,10 @@ export default function FormularioTratamiento({ modo, inicial }: Props) {
                 </TableBody>
               </Table>
 
-              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2, pt: 2, borderTop: '1px solid #E2E8F0' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2, pt: 2, borderTop: '1px solid var(--line)' }}>
                 <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="caption" sx={{ color: '#64748B' }}>PRECIO TOTAL DEL TRATAMIENTO</Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#0F172A' }}>
+                  <Typography variant="caption" sx={{ color: 'var(--soft)' }}>PRECIO TOTAL DEL TRATAMIENTO</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'var(--ink)' }}>
                     {formatPrecio(precioTotal)}
                   </Typography>
                 </Box>

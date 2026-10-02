@@ -1,36 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getItemStock, registrarMovimiento } from '@/lib/firestore/stock';
-import { getMovimientos } from '@/lib/firestore/stock';
+import { NextRequest } from 'next/server';
+import { registrarMovimiento, ItemInexistenteError, StockInsuficienteError } from '@/lib/firestore/stock';
+import { datosInvalidos, leerJson, manejarErrores, noEncontrado, ok, validar } from '@/lib/api/respuestas';
+import { esquemaMovimientoStock } from '@/lib/esquemas';
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+type Contexto = { params: Promise<{ id: string }> };
+
+export const POST = manejarErrores(async (req: NextRequest, { params }: Contexto) => {
+  const { id } = await params;
+  const { tipo, cantidad, motivo } = validar(esquemaMovimientoStock, await leerJson(req));
+
   try {
-    const { id } = await params;
-    const body = await req.json();
-    const { tipo, cantidad, motivo } = body;
-
-    if (!tipo || cantidad == null) {
-      return NextResponse.json({ error: 'Tipo y cantidad son requeridos' }, { status: 400 });
-    }
-
-    const item = await getItemStock(id);
-    if (!item) return NextResponse.json({ error: 'Item no encontrado' }, { status: 404 });
-
-    if (tipo === 'salida' && item.cantidad < cantidad) {
-      return NextResponse.json({ error: 'Stock insuficiente para registrar salida' }, { status: 400 });
-    }
-
-    await registrarMovimiento(item, tipo, cantidad, motivo);
-    return NextResponse.json({ mensaje: 'Movimiento registrado correctamente' });
+    const resultado = await registrarMovimiento(id, tipo, cantidad, motivo);
+    return ok({ mensaje: 'Movimiento registrado correctamente', ...resultado });
   } catch (e) {
-    return NextResponse.json({ error: 'Error al registrar movimiento' }, { status: 500 });
+    if (e instanceof ItemInexistenteError) throw noEncontrado('Item no encontrado');
+    if (e instanceof StockInsuficienteError) throw datosInvalidos(e.message);
+    throw e;
   }
-}
-
-export async function GET() {
-  try {
-    const movimientos = await getMovimientos();
-    return NextResponse.json({ items: movimientos });
-  } catch (e) {
-    return NextResponse.json({ error: 'Error al obtener movimientos' }, { status: 500 });
-  }
-}
+}, 'Error al registrar movimiento');

@@ -1,50 +1,46 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { guardarMensajeEntrante } from '@/lib/firestore/mensajes';
+import { datosInvalidos, leerJson, manejarErrores, ok } from '@/lib/api/respuestas';
+import { exigirClaveInterna } from '@/lib/api/guardas';
+import { claveConversacion, esTelefonoValido, MAX_LARGO_MENSAJE } from '@/lib/whatsapp';
 
-// Called by n8n after classifying each incoming WhatsApp message.
-// Validates the shared internal key so it's never reachable without auth.
-export async function POST(req: NextRequest) {
-  const key = req.headers.get('x-internal-key');
-  if (key !== process.env.MEDISYSTEM_INTERNAL_KEY) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  try {
-    const body = await req.json() as {
-      from: string;
-      name?: string;
-      text: string;
-      intent?: string;
-      needsHuman?: boolean;
-      timestamp?: number;
-    };
-
-    if (!body.from || !body.text) {
-      return NextResponse.json({ error: 'Missing from or text' }, { status: 400 });
-    }
-
-    // Map n8n intent → existing clasificacion/urgencia/derivarA schema
-    const intentMap: Record<string, { clasificacion: string; urgencia: 'alta' | 'media' | 'baja'; derivarA: 'medico' | 'secretaria' | 'automatico' }> = {
-      urgente:  { clasificacion: 'urgencia',     urgencia: 'alta',  derivarA: 'medico' },
-      turno:    { clasificacion: 'turno',         urgencia: 'baja',  derivarA: 'automatico' },
-      cancelar: { clasificacion: 'turno',         urgencia: 'baja',  derivarA: 'secretaria' },
-      consulta: { clasificacion: 'consulta_medica', urgencia: 'media', derivarA: 'medico' },
-      otro:     { clasificacion: 'otro',          urgencia: 'baja',  derivarA: 'secretaria' },
-    };
-
-    const mapped = intentMap[body.intent ?? 'otro'] ?? intentMap.otro;
-
-    await guardarMensajeEntrante({
-      telefono: body.from,
-      nombre: body.name,
-      cuerpo: body.text,
-      clasificacion: mapped.clasificacion,
-      urgencia: mapped.urgencia,
-      derivarA: mapped.derivarA,
-    });
-
-    return NextResponse.json({ ok: true });
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
-  }
+interface MensajeDeN8n {
+  from?: string;
+  name?: string;
+  text?: string;
+  intent?: string;
 }
+
+/** Traducción del `intent` que manda n8n al esquema interno de clasificación. */
+const POR_INTENT = {
+  urgente:  { clasificacion: 'urgencia',          urgencia: 'alta',  derivarA: 'medico' },
+  turno:    { clasificacion: 'turno',             urgencia: 'baja',  derivarA: 'automatico' },
+  cancelar: { clasificacion: 'turno',             urgencia: 'baja',  derivarA: 'secretaria' },
+  consulta: { clasificacion: 'consulta_medica',   urgencia: 'media', derivarA: 'medico' },
+  otro:     { clasificacion: 'otro',              urgencia: 'baja',  derivarA: 'secretaria' },
+} as const;
+
+// La llama n8n después de clasificar cada mensaje entrante de WhatsApp.
+export const POST = manejarErrores(async (req: NextRequest) => {
+  exigirClaveInterna(req);
+
+  const { from, name, text, intent } = await leerJson(req) as MensajeDeN8n;
+  if (typeof from !== 'string' || typeof text !== 'string' || !text) {
+    throw datosInvalidos('Missing from or text');
+  }
+  const telefono = claveConversacion(from);
+  if (!esTelefonoValido(telefono)) throw datosInvalidos('Invalid from');
+
+  const mapeado = POR_INTENT[intent as keyof typeof POR_INTENT] ?? POR_INTENT.otro;
+
+  await guardarMensajeEntrante({
+    telefono,
+    nombre: typeof name === 'string' ? name.slice(0, 120) : undefined,
+    cuerpo: text.slice(0, MAX_LARGO_MENSAJE),
+    clasificacion: mapeado.clasificacion,
+    urgencia: mapeado.urgencia,
+    derivarA: mapeado.derivarA,
+  });
+
+  return ok({ ok: true });
+}, 'Error al registrar el mensaje entrante');

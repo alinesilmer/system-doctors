@@ -6,22 +6,23 @@ import FormularioPaciente from '@/components/pacientes/FormularioPaciente';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import Alert from '@mui/material/Alert';
 import { usePaciente } from '@/hooks/usePacientes';
+import { datosEditables } from '@/lib/entidad';
 
 export default function EditarPacientePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { paciente, cargando, error } = usePaciente(id);
 
-  if (cargando) return <PageContainer titulo="Editar Paciente"><LoadingScreen /></PageContainer>;
+  if (cargando) return <PageContainer volver={`/pacientes/${id}`} titulo="Editar Paciente"><LoadingScreen /></PageContainer>;
   if (error || !paciente) return (
-    <PageContainer titulo="Editar Paciente">
+    <PageContainer volver={`/pacientes/${id}`} titulo="Editar Paciente">
       <Alert severity="error">{error ?? 'Paciente no encontrado'}</Alert>
     </PageContainer>
   );
 
-  const { id: _id, creadoEn: _c, actualizadoEn: _a, ...inicial } = paciente;
+  const inicial = datosEditables(paciente);
 
   return (
-    <PageContainer
+    <PageContainer volver={`/pacientes/${id}`}
       titulo={`Editar: ${paciente.nombre} ${paciente.apellido}`}
       subtitulo={`DNI: ${paciente.dni}`}
     >

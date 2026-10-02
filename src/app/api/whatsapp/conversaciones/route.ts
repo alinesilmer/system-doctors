@@ -1,19 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getConversaciones, getMensajes, marcarLeidos } from '@/lib/firestore/mensajes';
+import { datosInvalidos, manejarErrores, ok } from '@/lib/api/respuestas';
+import { esTelefonoValido } from '@/lib/whatsapp';
 
-export async function GET(req: NextRequest) {
-  const { searchParams } = req.nextUrl;
-  const telefono = searchParams.get('telefono');
+export const GET = manejarErrores(async (req: NextRequest) => {
+  const telefono = req.nextUrl.searchParams.get('telefono');
 
-  try {
-    if (telefono) {
-      const mensajes = await getMensajes(telefono);
-      await marcarLeidos(telefono);
-      return NextResponse.json({ items: mensajes });
-    }
-    const conversaciones = await getConversaciones();
-    return NextResponse.json({ items: conversaciones });
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  if (telefono) {
+    if (!esTelefonoValido(telefono)) throw datosInvalidos('Teléfono inválido');
+    const mensajes = await getMensajes(telefono);
+    await marcarLeidos(telefono);
+    return ok({ items: mensajes });
   }
-}
+
+  return ok({ items: await getConversaciones() });
+}, 'Error al obtener las conversaciones');

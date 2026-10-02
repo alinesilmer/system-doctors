@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -8,14 +8,19 @@ import Grid from '@mui/material/Grid';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
-import Typography from '@mui/material/Typography';
 import MenuItem from '@mui/material/MenuItem';
 import Alert from '@mui/material/Alert';
 import Autocomplete from '@mui/material/Autocomplete';
 import Divider from '@mui/material/Divider';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import type { Turno, Paciente, EstadoTurno } from '@/lib/types';
+import SelectorHora, { aHora, aMinutos } from './SelectorHora';
+import Etiqueta from '@/components/ui/Etiqueta';
+import { useAhora } from '@/hooks/useAhora';
+import { useColeccion } from '@/hooks/useRecurso';
+import { usePacientes } from '@/hooks/usePacientes';
+import { pedirApi } from '@/lib/api/cliente';
+import { horaActual, hoyIso, mananaIso } from '@/lib/fechas';
+import type { Turno, EstadoTurno } from '@/lib/types';
 
 const ESTADOS: { value: EstadoTurno; label: string }[] = [
   { value: 'pendiente',  label: 'Pendiente' },
@@ -51,16 +56,6 @@ interface Props {
   modo: 'crear' | 'editar';
 }
 
-function hoy() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function manana() {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
-
 function addMinutes(time: string, minutes: number): string {
   const [h, m] = time.split(':').map(Number);
   const total = h * 60 + m + minutes;
@@ -72,7 +67,7 @@ function addMinutes(time: string, minutes: number): string {
 const VACIO: FormData = {
   pacienteId: '',
   pacienteNombre: '',
-  fecha: hoy(),
+  fecha: hoyIso(),
   horaInicio: '09:00',
   horaFin: '09:30',
   motivo: '',
@@ -80,22 +75,39 @@ const VACIO: FormData = {
   notas: '',
 };
 
+/** Para un turno nuevo de hoy: la próxima media hora libre de reloj, no un horario que ya pasó. */
+function horarioSugerido(): Pick<FormData, 'horaInicio' | 'horaFin'> | undefined {
+  const siguiente = Math.ceil((aMinutos(horaActual()) + 1) / 30) * 30;
+  if (siguiente < 8 * 60 || siguiente >= 20 * 60) return undefined;
+  return { horaInicio: aHora(siguiente), horaFin: aHora(siguiente + 30) };
+}
+
 export default function FormularioTurno({ inicial, turnoId, modo }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [form, setForm] = useState<FormData>({ ...VACIO, ...inicial });
-  const [pacientes, setPacientes] = useState<Paciente[]>([]);
-  const [duracionActiva, setDuracionActiva] = useState<number>(30);
+  // Al llegar desde la ficha de un paciente, el turno arranca con ese paciente puesto.
+  const pacienteDesdeUrl = searchParams.get('pacienteId');
+  const [form, setForm] = useState<FormData>({
+    ...VACIO,
+    ...horarioSugerido(),
+    ...(pacienteDesdeUrl ? { pacienteId: pacienteDesdeUrl } : {}),
+    ...inicial,
+  });
+  const { pacientes } = usePacientes();
+  // Al editar, la duración es la que ya tenía el turno.
+  const [duracionActiva, setDuracionActiva] = useState<number>(() => {
+    const minutos = form.horaFin ? aMinutos(form.horaFin) - aMinutos(form.horaInicio) : 0;
+    return minutos > 0 ? minutos : 30;
+  });
+  const ahora = useAhora();
+
+  // Lo ya agendado ese día (menos este mismo turno) deja sus horarios fuera de juego.
+  const { items: delDia } = useColeccion<Turno>(`/api/turnos?desde=${form.fecha}&hasta=${form.fecha}`, 'Error al cargar turnos');
+  const ocupados = delDia
+    .filter((t) => t.id !== turnoId && t.estado !== 'cancelado')
+    .map((t) => ({ inicio: t.horaInicio, fin: t.horaFin || t.horaInicio }));
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch('/api/pacientes')
-      .then((r) => r.json())
-      .then((d) => setPacientes(d.items ?? []));
-    const pid = searchParams.get('pacienteId');
-    if (pid) setForm((p) => ({ ...p, pacienteId: pid }));
-  }, []);
 
   function set(campo: keyof FormData, valor: string) {
     setForm((prev) => ({ ...prev, [campo]: valor }));
@@ -122,13 +134,7 @@ export default function FormularioTurno({ inicial, turnoId, modo }: Props) {
       const url = modo === 'crear' ? '/api/turnos' : `/api/turnos/${turnoId}`;
       const method = modo === 'crear' ? 'POST' : 'PUT';
       const paciente = pacientes.find((p) => p.id === form.pacienteId);
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, pacienteNombre: paciente ? `${paciente.apellido}, ${paciente.nombre}` : form.pacienteNombre }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Error desconocido');
+      await pedirApi(url, { metodo: method, cuerpo: { ...form, pacienteNombre: paciente ? `${paciente.apellido}, ${paciente.nombre}` : form.pacienteNombre } });
       router.push('/turnos');
     } catch (e) {
       setError((e as Error).message);
@@ -156,7 +162,7 @@ export default function FormularioTurno({ inicial, turnoId, modo }: Props) {
                   value={pacienteSeleccionado}
                   onChange={(_, v) => set('pacienteId', v?.id ?? '')}
                   renderInput={(params) => (
-                    <TextField {...params} label="Paciente *" placeholder="Buscar por nombre o DNI…" required />
+                    <TextField {...params} label="Paciente" placeholder="Buscar por nombre o DNI…" required />
                   )}
                   isOptionEqualToValue={(a, b) => a.id === b.id}
                   noOptionsText="Sin resultados"
@@ -167,7 +173,7 @@ export default function FormularioTurno({ inicial, turnoId, modo }: Props) {
               <Grid size={12}>
                 <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, flexWrap: 'wrap' }}>
                   <TextField
-                    label="Fecha *"
+                    label="Fecha"
                     type="date"
                     value={form.fecha}
                     onChange={(e) => set('fecha', e.target.value)}
@@ -179,73 +185,61 @@ export default function FormularioTurno({ inicial, turnoId, modo }: Props) {
                     <Chip
                       label="Hoy"
                       size="small"
-                      variant={form.fecha === hoy() ? 'filled' : 'outlined'}
-                      color={form.fecha === hoy() ? 'primary' : 'default'}
-                      onClick={() => set('fecha', hoy())}
+                      variant={form.fecha === hoyIso() ? 'filled' : 'outlined'}
+                      color={form.fecha === hoyIso() ? 'primary' : 'default'}
+                      onClick={() => set('fecha', hoyIso())}
                       sx={{ cursor: 'pointer' }}
                     />
                     <Chip
                       label="Mañana"
                       size="small"
-                      variant={form.fecha === manana() ? 'filled' : 'outlined'}
-                      color={form.fecha === manana() ? 'primary' : 'default'}
-                      onClick={() => set('fecha', manana())}
+                      variant={form.fecha === mananaIso() ? 'filled' : 'outlined'}
+                      color={form.fecha === mananaIso() ? 'primary' : 'default'}
+                      onClick={() => set('fecha', mananaIso())}
                       sx={{ cursor: 'pointer' }}
                     />
                   </Box>
                 </Box>
               </Grid>
 
-              {/* Hora inicio + duración */}
-              <Grid size={{ xs: 12, sm: 5 }}>
-                <TextField
-                  label="Hora inicio *"
-                  type="time"
-                  value={form.horaInicio}
-                  onChange={(e) => handleHoraInicioChange(e.target.value)}
-                  fullWidth
-                  required
-                  slotProps={{ inputLabel: { shrink: true } }}
-                />
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 7 }}>
-                <Typography variant="caption" sx={{ color: '#64748B', display: 'block', mb: 0.75 }}>
-                  <AccessTimeIcon sx={{ fontSize: 12, mr: 0.5, verticalAlign: 'middle' }} />
-                  Duración
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 0.75 }}>
+              {/* Duración: de ella sale la hora de fin, que no hace falta cargar. */}
+              <Grid size={12}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                   {DURACIONES.map((d) => (
                     <Chip
                       key={d.min}
                       label={d.label}
-                      size="small"
                       variant={duracionActiva === d.min ? 'filled' : 'outlined'}
                       color={duracionActiva === d.min ? 'primary' : 'default'}
                       onClick={() => aplicarDuracion(d.min)}
                       sx={{ cursor: 'pointer' }}
                     />
                   ))}
-                  <TextField
-                    label="Fin"
-                    type="time"
-                    value={form.horaFin}
-                    onChange={(e) => set('horaFin', e.target.value)}
-                    size="small"
-                    slotProps={{ inputLabel: { shrink: true } }}
-                    sx={{ width: 120, ml: 0.5 }}
-                  />
+                  <Box sx={{ ml: 'auto' }}>
+                    <Etiqueta tono="acento">{form.horaInicio} – {form.horaFin}</Etiqueta>
+                  </Box>
                 </Box>
               </Grid>
 
+              {/* Hora: todos los horarios del día a un toque. */}
               <Grid size={12}>
-                <Divider sx={{ borderColor: '#F1F5F9' }} />
+                <SelectorHora
+                  valor={form.horaInicio}
+                  onCambio={handleHoraInicioChange}
+                  duracion={duracionActiva}
+                  ocupados={ocupados}
+                  desde={form.fecha === hoyIso() ? ahora : undefined}
+                />
+              </Grid>
+
+              <Grid size={12}>
+                <Divider sx={{ borderColor: 'var(--bg)' }} />
               </Grid>
 
               {/* Motivo con sugerencias rápidas */}
               <Grid size={{ xs: 12, sm: 8 }}>
                 <TextField
-                  label="Motivo de consulta *"
+                  label="Motivo"
                   value={form.motivo}
                   onChange={(e) => set('motivo', e.target.value)}
                   fullWidth
@@ -275,7 +269,7 @@ export default function FormularioTurno({ inicial, turnoId, modo }: Props) {
                       size="small"
                       variant="outlined"
                       onClick={() => set('motivo', m)}
-                      sx={{ cursor: 'pointer', '&:hover': { backgroundColor: '#F0F9FF', borderColor: '#2563EB', color: '#2563EB' } }}
+                      sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'var(--mint)', borderColor: 'var(--pink)', color: 'var(--pink)' } }}
                     />
                   ))}
                 </Box>

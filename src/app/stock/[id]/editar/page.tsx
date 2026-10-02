@@ -1,37 +1,29 @@
 'use client';
 
-import { use, useState, useEffect } from 'react';
+import { use } from 'react';
+import { useRecurso } from '@/hooks/useRecurso';
 import PageContainer from '@/components/ui/PageContainer';
 import FormularioStock from '@/components/stock/FormularioStock';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import Alert from '@mui/material/Alert';
 import type { ItemStock } from '@/lib/types';
+import { datosEditables } from '@/lib/entidad';
 
 export default function EditarStockPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [item, setItem] = useState<ItemStock | null>(null);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { dato: item, cargando, error } = useRecurso<ItemStock>(`/api/stock/${id}`, 'Item no encontrado');
 
-  useEffect(() => {
-    fetch(`/api/stock/${id}`)
-      .then((r) => { if (!r.ok) throw new Error('Item no encontrado'); return r.json(); })
-      .then((d) => setItem(d.data))
-      .catch((e) => setError(e.message))
-      .finally(() => setCargando(false));
-  }, [id]);
-
-  if (cargando) return <PageContainer titulo="Editar Item"><LoadingScreen /></PageContainer>;
+  if (cargando) return <PageContainer volver="/stock" titulo="Editar Item"><LoadingScreen /></PageContainer>;
   if (error || !item) return (
-    <PageContainer titulo="Editar Item">
+    <PageContainer volver="/stock" titulo="Editar Item">
       <Alert severity="error">{error ?? 'Item no encontrado'}</Alert>
     </PageContainer>
   );
 
-  const { id: _id, creadoEn: _c, actualizadoEn: _a, ...inicial } = item;
+  const inicial = datosEditables(item);
 
   return (
-    <PageContainer titulo={`Editar: ${item.nombre}`} subtitulo={item.categoria}>
+    <PageContainer volver="/stock" titulo={`Editar: ${item.nombre}`} subtitulo={item.categoria}>
       <FormularioStock modo="editar" itemId={id} inicial={inicial} />
     </PageContainer>
   );

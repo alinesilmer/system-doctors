@@ -10,7 +10,6 @@ import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
 import MenuItem from '@mui/material/MenuItem';
 import Alert from '@mui/material/Alert';
-import Divider from '@mui/material/Divider';
 import Autocomplete from '@mui/material/Autocomplete';
 import Chip from '@mui/material/Chip';
 import FormGroup from '@mui/material/FormGroup';
@@ -24,13 +23,11 @@ import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import FamilyRestroomIcon from '@mui/icons-material/FamilyRestroom';
 import LocalHospitalOutlinedIcon from '@mui/icons-material/LocalHospitalOutlined';
 import SelfImprovementIcon from '@mui/icons-material/SelfImprovement';
+import { GRUPOS_SANGUINEOS, OBRAS_SOCIALES } from '@/lib/catalogos';
+import { calcularEdad } from '@/lib/fechas';
+import { pedirApi } from '@/lib/api/cliente';
 import type { Paciente, SexoBiologico, AntFamiliares, AntPersonales, Habitos } from '@/lib/types';
-
-const OBRAS_SOCIALES = [
-  'OSDE', 'Swiss Medical', 'Galeno', 'IOMA', 'PAMI', 'Medifé',
-  'Sancor Salud', 'Omint', 'Federada Salud', 'Subsidio del Estado',
-  'DOSEP', 'IAPOS', 'OSECAC', 'Jerárquicos Salud', 'Particular / Sin cobertura',
-];
+import SectionTitle from '@/components/ui/SectionTitle';
 
 const CONDICIONES_COMUNES = [
   'Diabetes', 'Hipertensión arterial', 'Enfermedad cardiovascular', 'Cáncer',
@@ -62,17 +59,6 @@ const VACIO_ANT_FAMILIARES: AntFamiliares = { padre: [], madre: [], hermanos: []
 const VACIO_ANT_PERSONALES: AntPersonales = { cirugias: [], internaciones: [] };
 const VACIO_HABITOS: Habitos = { items: [] };
 
-function calcularEdad(fechaNacimiento: string): string {
-  if (!fechaNacimiento) return '';
-  const nac = new Date(fechaNacimiento + 'T00:00:00');
-  const hoy = new Date();
-  let edad = hoy.getFullYear() - nac.getFullYear();
-  const m = hoy.getMonth() - nac.getMonth();
-  if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) edad--;
-  if (edad < 0 || edad > 130) return '';
-  return `${edad} años`;
-}
-
 type FormData = Omit<Paciente, 'id' | 'creadoEn' | 'actualizadoEn' | 'documentos'>;
 
 const SEXO_OPCIONES: { value: SexoBiologico; label: string }[] = [
@@ -81,8 +67,6 @@ const SEXO_OPCIONES: { value: SexoBiologico; label: string }[] = [
   { value: 'otro', label: 'Otro' },
   { value: 'no_especificado', label: 'No especificado' },
 ];
-
-const GRUPOS_SANGUINEOS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 interface Props {
   inicial?: Partial<FormData>;
@@ -165,13 +149,7 @@ export default function FormularioPaciente({ inicial, pacienteId, modo }: Props)
     try {
       const url = modo === 'crear' ? '/api/pacientes' : `/api/pacientes/${pacienteId}`;
       const method = modo === 'crear' ? 'POST' : 'PUT';
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Error desconocido');
+      const data = await pedirApi<{ data?: { id?: string } }>(url, { metodo: method, cuerpo: form });
       setExito(true);
       setTimeout(() => {
         if (modo === 'crear') {
@@ -185,17 +163,6 @@ export default function FormularioPaciente({ inicial, pacienteId, modo }: Props)
     } finally {
       setCargando(false);
     }
-  }
-
-  function SectionTitle({ children }: { children: React.ReactNode }) {
-    return (
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="h6" sx={{ color: '#475569', fontWeight: 600 }}>
-          {children}
-        </Typography>
-        <Divider sx={{ mt: 1, borderColor: '#F1F5F9' }} />
-      </Box>
-    );
   }
 
   return (
@@ -232,7 +199,7 @@ export default function FormularioPaciente({ inicial, pacienteId, modo }: Props)
                     <Chip
                       label={calcularEdad(form.fechaNacimiento)}
                       size="small"
-                      sx={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', backgroundColor: '#F0F9FF', color: '#0369A1', fontSize: '0.7rem', height: 20, pointerEvents: 'none' }}
+                      sx={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', backgroundColor: 'var(--mint)', color: 'var(--pink)', fontSize: '0.7rem', height: 20, pointerEvents: 'none' }}
                     />
                   )}
                 </Box>
@@ -342,11 +309,11 @@ export default function FormularioPaciente({ inicial, pacienteId, modo }: Props)
 
         {/* Antecedentes familiares */}
         <Grid size={12}>
-          <Accordion defaultExpanded={false} sx={{ border: '1px solid #E2E8F0', boxShadow: 'none', '&:before': { display: 'none' }, borderRadius: '12px !important' }}>
+          <Accordion defaultExpanded={false} sx={{ border: '1px solid var(--line)', boxShadow: 'none', '&:before': { display: 'none' }, borderRadius: '12px !important' }}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 3, py: 1.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <FamilyRestroomIcon sx={{ color: '#8B5CF6', fontSize: 20 }} />
-                <Typography variant="h6" sx={{ color: '#0F172A', fontWeight: 600 }}>
+                <FamilyRestroomIcon sx={{ color: 'var(--ink)', fontSize: 20 }} />
+                <Typography variant="h6" sx={{ color: 'var(--ink)', fontWeight: 600 }}>
                   Antecedentes familiares
                 </Typography>
               </Box>
@@ -378,11 +345,11 @@ export default function FormularioPaciente({ inicial, pacienteId, modo }: Props)
 
         {/* Antecedentes personales */}
         <Grid size={12}>
-          <Accordion defaultExpanded={false} sx={{ border: '1px solid #E2E8F0', boxShadow: 'none', '&:before': { display: 'none' }, borderRadius: '12px !important' }}>
+          <Accordion defaultExpanded={false} sx={{ border: '1px solid var(--line)', boxShadow: 'none', '&:before': { display: 'none' }, borderRadius: '12px !important' }}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 3, py: 1.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <LocalHospitalOutlinedIcon sx={{ color: '#EF4444', fontSize: 20 }} />
-                <Typography variant="h6" sx={{ color: '#0F172A', fontWeight: 600 }}>
+                <LocalHospitalOutlinedIcon sx={{ color: 'var(--bad)', fontSize: 20 }} />
+                <Typography variant="h6" sx={{ color: 'var(--ink)', fontWeight: 600 }}>
                   Antecedentes personales / quirúrgicos
                 </Typography>
               </Box>
@@ -420,11 +387,11 @@ export default function FormularioPaciente({ inicial, pacienteId, modo }: Props)
 
         {/* Hábitos */}
         <Grid size={12}>
-          <Accordion defaultExpanded={false} sx={{ border: '1px solid #E2E8F0', boxShadow: 'none', '&:before': { display: 'none' }, borderRadius: '12px !important' }}>
+          <Accordion defaultExpanded={false} sx={{ border: '1px solid var(--line)', boxShadow: 'none', '&:before': { display: 'none' }, borderRadius: '12px !important' }}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 3, py: 1.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <SelfImprovementIcon sx={{ color: '#10B981', fontSize: 20 }} />
-                <Typography variant="h6" sx={{ color: '#0F172A', fontWeight: 600 }}>
+                <SelfImprovementIcon sx={{ color: 'var(--ok)', fontSize: 20 }} />
+                <Typography variant="h6" sx={{ color: 'var(--ink)', fontWeight: 600 }}>
                   Hábitos
                 </Typography>
               </Box>
@@ -469,7 +436,7 @@ export default function FormularioPaciente({ inicial, pacienteId, modo }: Props)
                         label={item}
                         size="small"
                         onDelete={() => toggleHabito(item)}
-                        sx={{ backgroundColor: '#F0FDF4', color: '#166534' }}
+                        sx={{ backgroundColor: 'color-mix(in srgb, var(--ok) 18%, transparent)', color: 'var(--ok)' }}
                       />
                     ))}
                 </Box>

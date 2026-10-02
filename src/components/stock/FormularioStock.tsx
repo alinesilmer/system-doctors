@@ -12,6 +12,7 @@ import MenuItem from '@mui/material/MenuItem';
 import Typography from '@mui/material/Typography';
 import Divider from '@mui/material/Divider';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
+import { pedirApi } from '@/lib/api/cliente';
 import type { ItemStock } from '@/lib/types';
 
 type FormData = Omit<ItemStock, 'id' | 'creadoEn' | 'actualizadoEn'>;
@@ -59,13 +60,7 @@ export default function FormularioStock({ inicial, itemId, modo }: Props) {
     try {
       const url = modo === 'crear' ? '/api/stock' : `/api/stock/${itemId}`;
       const method = modo === 'crear' ? 'POST' : 'PUT';
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Error desconocido');
+      await pedirApi(url, { metodo: method, cuerpo: form });
       router.push('/stock');
     } catch (e) {
       setError((e as Error).message);
@@ -123,8 +118,8 @@ export default function FormularioStock({ inicial, itemId, modo }: Props) {
               </Grid>
 
               <Grid size={12}>
-                <Divider sx={{ borderColor: '#F1F5F9', my: 0.5 }} />
-                <Typography variant="caption" sx={{ color: '#94A3B8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                <Divider sx={{ borderColor: 'var(--bg)', my: 0.5 }} />
+                <Typography variant="caption" sx={{ color: 'var(--soft)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                   Trazabilidad (opcional)
                 </Typography>
               </Grid>

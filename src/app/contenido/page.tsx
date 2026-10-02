@@ -23,6 +23,7 @@ import InstagramIcon from '@mui/icons-material/Instagram';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
+import { pedirApi } from '@/lib/api/cliente';
 import PageContainer from '@/components/ui/PageContainer';
 
 type Platform = 'instagram_post' | 'instagram_story' | 'whatsapp' | 'whatsapp_status';
@@ -63,7 +64,7 @@ function CopyButton({ text }: { text: string }) {
   }
   return (
     <Tooltip title={copied ? '¡Copiado!' : 'Copiar'}>
-      <IconButton size="small" onClick={handleCopy} sx={{ color: copied ? '#10B981' : '#94A3B8' }}>
+      <IconButton size="small" onClick={handleCopy} sx={{ color: copied ? 'var(--ok)' : 'var(--soft)' }}>
         {copied ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
       </IconButton>
     </Tooltip>
@@ -76,18 +77,18 @@ function ContentBlock({ label, text, accent }: { label: string; text: string; ac
       sx={{
         p: 2,
         borderRadius: 2,
-        border: '1px solid #E2E8F0',
-        backgroundColor: '#FAFBFC',
+        border: '1px solid var(--line)',
+        backgroundColor: 'var(--bg)',
         position: 'relative',
       }}
     >
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
-        <Typography variant="caption" sx={{ color: accent ?? '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        <Typography variant="caption" sx={{ color: accent ?? 'var(--soft)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           {label}
         </Typography>
         <CopyButton text={text} />
       </Box>
-      <Typography variant="body2" sx={{ color: '#1E293B', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+      <Typography variant="body2" sx={{ color: 'var(--ink)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
         {text}
       </Typography>
     </Box>
@@ -125,13 +126,11 @@ export default function ContenidoPage() {
     setError(null);
     setResultado(null);
     try {
-      const res = await fetch('/api/contenido/generar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ specialty, topic, platform, tone, audience, goal }),
+      const data = await pedirApi<{ data: ContenidoGenerado }>('/api/contenido/generar', {
+        metodo: 'POST',
+        cuerpo: { specialty, topic, platform, tone, audience, goal },
+        mensajeError: 'Error al generar contenido',
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Error al generar contenido');
       setResultado(data.data);
       setTab(0);
     } catch (e) {
@@ -145,17 +144,16 @@ export default function ContenidoPage() {
   const isWhatsApp = platform.startsWith('whatsapp');
 
   return (
-    <PageContainer
+    <PageContainer volver="/mas"
       titulo="Contenido IA"
-      subtitulo="Generá contenido médico profesional para redes sociales y WhatsApp"
     >
       <Grid container spacing={2.5}>
         {/* Form */}
         <Grid size={{ xs: 12, lg: 4 }}>
           <Card sx={{ p: 3, position: { lg: 'sticky' }, top: { lg: 24 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-              <AutoAwesomeIcon sx={{ color: '#8B5CF6', fontSize: 20 }} />
-              <Typography variant="h6" sx={{ fontWeight: 700, color: '#0F172A' }}>
+              <AutoAwesomeIcon sx={{ color: 'var(--ink)', fontSize: 20 }} />
+              <Typography variant="h6" sx={{ fontWeight: 700, color: 'var(--ink)' }}>
                 Configurar contenido
               </Typography>
             </Box>
@@ -198,7 +196,7 @@ export default function ContenidoPage() {
 
               {/* Tone selector */}
               <Box>
-                <Typography variant="caption" sx={{ color: '#475569', fontWeight: 600, mb: 1, display: 'block' }}>
+                <Typography variant="caption" sx={{ color: 'var(--soft)', fontWeight: 600, mb: 1, display: 'block' }}>
                   Tono
                 </Typography>
                 <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
@@ -210,17 +208,17 @@ export default function ContenidoPage() {
                         p: 1.5,
                         borderRadius: 2,
                         border: '2px solid',
-                        borderColor: tone === t.value ? '#8B5CF6' : '#E2E8F0',
-                        backgroundColor: tone === t.value ? '#F5F3FF' : 'transparent',
+                        borderColor: tone === t.value ? 'var(--ink)' : 'var(--line)',
+                        backgroundColor: tone === t.value ? 'var(--lila)' : 'transparent',
                         cursor: 'pointer',
                         transition: 'all 0.15s',
-                        '&:hover': { borderColor: '#C4B5FD' },
+                        '&:hover': { borderColor: 'var(--lila)' },
                       }}
                     >
-                      <Typography variant="body2" sx={{ fontWeight: tone === t.value ? 700 : 500, color: tone === t.value ? '#7C3AED' : '#374151' }}>
+                      <Typography variant="body2" sx={{ fontWeight: tone === t.value ? 700 : 500, color: tone === t.value ? 'var(--ink)' : 'var(--ink)' }}>
                         {t.label}
                       </Typography>
-                      <Typography variant="caption" sx={{ color: '#94A3B8' }}>{t.desc}</Typography>
+                      <Typography variant="caption" sx={{ color: 'var(--soft)' }}>{t.desc}</Typography>
                     </Box>
                   ))}
                 </Box>
@@ -255,8 +253,8 @@ export default function ContenidoPage() {
                 sx={{
                   py: 1.5,
                   fontWeight: 700,
-                  background: 'linear-gradient(135deg, #7C3AED, #8B5CF6)',
-                  '&:hover': { background: 'linear-gradient(135deg, #6D28D9, #7C3AED)' },
+                  background: 'linear-gradient(135deg, var(--ink), var(--ink))',
+                  '&:hover': { background: 'linear-gradient(135deg, var(--ink), var(--ink))' },
                 }}
               >
                 {cargando ? 'Generando...' : 'Generar contenido'}
@@ -275,17 +273,17 @@ export default function ContenidoPage() {
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                border: '2px dashed #E2E8F0',
+                border: '2px dashed var(--line)',
                 borderRadius: 3,
-                color: '#94A3B8',
+                color: 'var(--soft)',
                 gap: 2,
               }}
             >
               <AutoAwesomeIcon sx={{ fontSize: 48, opacity: 0.3 }} />
-              <Typography variant="h6" sx={{ color: '#CBD5E1' }}>
+              <Typography variant="h6" sx={{ color: 'var(--line)' }}>
                 El contenido generado aparecerá aquí
               </Typography>
-              <Typography variant="body2" sx={{ color: '#CBD5E1' }}>
+              <Typography variant="body2" sx={{ color: 'var(--line)' }}>
                 Completá el formulario y hacé clic en Generar
               </Typography>
             </Box>
@@ -294,8 +292,8 @@ export default function ContenidoPage() {
           {cargando && (
             <Card sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                <AutoAwesomeIcon sx={{ color: '#8B5CF6' }} />
-                <Typography variant="h6" sx={{ color: '#0F172A', fontWeight: 700 }}>
+                <AutoAwesomeIcon sx={{ color: 'var(--ink)' }} />
+                <Typography variant="h6" sx={{ color: 'var(--ink)', fontWeight: 700 }}>
                   Generando contenido…
                 </Typography>
               </Box>
@@ -306,12 +304,12 @@ export default function ContenidoPage() {
           {resultado && !cargando && (
             <Card sx={{ overflow: 'hidden' }}>
               {/* Header */}
-              <Box sx={{ p: 3, pb: 0, borderBottom: '1px solid #E2E8F0' }}>
+              <Box sx={{ p: 3, pb: 0, borderBottom: '1px solid var(--line)' }}>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2 }}>
                   <Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                      <AutoAwesomeIcon sx={{ color: '#8B5CF6', fontSize: 18 }} />
-                      <Typography variant="h5" sx={{ fontWeight: 700, color: '#0F172A' }}>
+                      <AutoAwesomeIcon sx={{ color: 'var(--ink)', fontSize: 18 }} />
+                      <Typography variant="h5" sx={{ fontWeight: 700, color: 'var(--ink)' }}>
                         {resultado.title}
                       </Typography>
                     </Box>
@@ -321,13 +319,13 @@ export default function ContenidoPage() {
                           icon={PLATFORMS.find((p) => p.value === platform)!.icon as React.ReactElement}
                           label={PLATFORMS.find((p) => p.value === platform)!.label}
                           size="small"
-                          sx={{ backgroundColor: '#EFF6FF', color: '#1D4ED8' }}
+                          sx={{ backgroundColor: 'var(--mint)', color: 'var(--pink)' }}
                         />
                       )}
                       <Chip
                         label={TONES.find((t) => t.value === tone)?.label}
                         size="small"
-                        sx={{ backgroundColor: '#F5F3FF', color: '#7C3AED' }}
+                        sx={{ backgroundColor: 'var(--lila)', color: 'var(--ink)' }}
                       />
                     </Box>
                   </Box>
@@ -366,9 +364,9 @@ export default function ContenidoPage() {
                       tab === idx++ && (
                         <Box key="captions" sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                           {resultado.caption_variants.map((v, i) => (
-                            <ContentBlock key={i} label={`Variante ${i + 1}`} text={v} accent="#2563EB" />
+                            <ContentBlock key={i} label={`Variante ${i + 1}`} text={v} accent="var(--pink)" />
                           ))}
-                          <ContentBlock label="Caption corto" text={resultado.short_caption} accent="#0EA5E9" />
+                          <ContentBlock label="Caption corto" text={resultado.short_caption} accent="var(--pink)" />
                         </Box>
                       )
                     );
@@ -380,7 +378,7 @@ export default function ContenidoPage() {
                               key={i}
                               label={i === resultado.story_slides.length - 1 ? 'Slide CTA' : `Slide ${i + 1}`}
                               text={slide}
-                              accent={i === resultado.story_slides.length - 1 ? '#10B981' : '#8B5CF6'}
+                              accent={i === resultado.story_slides.length - 1 ? 'var(--ok)' : 'var(--ink)'}
                             />
                           ))}
                         </Box>
@@ -392,9 +390,9 @@ export default function ContenidoPage() {
                     tabs.push(
                       tab === idx++ && (
                         <Box key="wa" sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                          <ContentBlock label="Mensaje corto" text={resultado.whatsapp_versions.short} accent="#10B981" />
-                          <ContentBlock label="Mensaje completo" text={resultado.whatsapp_versions.medium} accent="#10B981" />
-                          <ContentBlock label="Recordatorio" text={resultado.whatsapp_versions.reminder} accent="#F59E0B" />
+                          <ContentBlock label="Mensaje corto" text={resultado.whatsapp_versions.short} accent="var(--ok)" />
+                          <ContentBlock label="Mensaje completo" text={resultado.whatsapp_versions.medium} accent="var(--ok)" />
+                          <ContentBlock label="Recordatorio" text={resultado.whatsapp_versions.reminder} accent="var(--warn)" />
                         </Box>
                       )
                     );
@@ -405,7 +403,7 @@ export default function ContenidoPage() {
                       <Box key="hashtags" sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
                         <Box>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                            <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            <Typography variant="caption" sx={{ color: 'var(--soft)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                               Hashtags
                             </Typography>
                             <CopyButton text={resultado.hashtags.join(' ')} />
@@ -417,13 +415,13 @@ export default function ContenidoPage() {
                                 label={h}
                                 size="small"
                                 onClick={() => navigator.clipboard.writeText(h)}
-                                sx={{ backgroundColor: '#EFF6FF', color: '#1D4ED8', fontWeight: 500, cursor: 'pointer', '&:hover': { backgroundColor: '#DBEAFE' } }}
+                                sx={{ backgroundColor: 'var(--mint)', color: 'var(--pink)', fontWeight: 500, cursor: 'pointer', '&:hover': { backgroundColor: 'var(--mint)' } }}
                               />
                             ))}
                           </Box>
                         </Box>
-                        <Divider sx={{ borderColor: '#F1F5F9' }} />
-                        <ContentBlock label="Call to Action" text={resultado.cta} accent="#10B981" />
+                        <Divider sx={{ borderColor: 'var(--bg)' }} />
+                        <ContentBlock label="Call to Action" text={resultado.cta} accent="var(--ok)" />
                       </Box>
                     )
                   );
@@ -431,32 +429,32 @@ export default function ContenidoPage() {
                   tabs.push(
                     tab === idx++ && (
                       <Box key="visual" sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                        <Box sx={{ p: 2.5, borderRadius: 2, border: '1px solid #E2E8F0', backgroundColor: '#FAFBFC' }}>
+                        <Box sx={{ p: 2.5, borderRadius: 2, border: '1px solid var(--line)', backgroundColor: 'var(--bg)' }}>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <ImageOutlinedIcon sx={{ color: '#8B5CF6', fontSize: 18 }} />
-                              <Typography variant="caption" sx={{ color: '#8B5CF6', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                              <ImageOutlinedIcon sx={{ color: 'var(--ink)', fontSize: 18 }} />
+                              <Typography variant="caption" sx={{ color: 'var(--ink)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                                 Prompt para imagen IA
                               </Typography>
                             </Box>
                             <CopyButton text={resultado.image_prompt} />
                           </Box>
-                          <Typography variant="body2" sx={{ color: '#1E293B', lineHeight: 1.7, fontStyle: 'italic' }}>
+                          <Typography variant="body2" sx={{ color: 'var(--ink)', lineHeight: 1.7, fontStyle: 'italic' }}>
                             {resultado.image_prompt}
                           </Typography>
                         </Box>
 
                         {resultado.compliance_notes.length > 0 && (
-                          <Box sx={{ p: 2.5, borderRadius: 2, border: '1px solid #FEF3C7', backgroundColor: '#FFFBEB' }}>
+                          <Box sx={{ p: 2.5, borderRadius: 2, border: '1px solid var(--sun)', backgroundColor: 'var(--sun)' }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                              <WarningAmberOutlinedIcon sx={{ color: '#D97706', fontSize: 18 }} />
-                              <Typography variant="caption" sx={{ color: '#D97706', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                              <WarningAmberOutlinedIcon sx={{ color: 'var(--warn)', fontSize: 18 }} />
+                              <Typography variant="caption" sx={{ color: 'var(--warn)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                                 Notas de compliance
                               </Typography>
                             </Box>
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
                               {resultado.compliance_notes.map((note, i) => (
-                                <Typography key={i} variant="body2" sx={{ color: '#92400E', lineHeight: 1.6 }}>
+                                <Typography key={i} variant="body2" sx={{ color: 'var(--warn)', lineHeight: 1.6 }}>
                                   • {note}
                                 </Typography>
                               ))}

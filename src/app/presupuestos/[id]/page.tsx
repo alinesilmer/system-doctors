@@ -18,43 +18,11 @@ import TableCell from '@mui/material/TableCell';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined';
-import MedicalServicesOutlinedIcon from '@mui/icons-material/MedicalServicesOutlined';
-import LocalHospitalOutlinedIcon from '@mui/icons-material/LocalHospitalOutlined';
-import ScienceOutlinedIcon from '@mui/icons-material/ScienceOutlined';
+import { ESTADOS, TIPO_COLORS, TIPO_ICONS, TIPO_LABELS } from '@/components/presupuestos/config';
+import { formatPrecio } from '@/lib/formato';
 import PageContainer from '@/components/ui/PageContainer';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { usePresupuesto } from '@/hooks/usePresupuestos';
-import type { EstadoPresupuesto, TipoItemPresupuesto } from '@/lib/types';
-
-const ESTADOS: Record<EstadoPresupuesto, { label: string; color: string; bg: string }> = {
-  borrador:  { label: 'Borrador',  color: '#92400E', bg: '#FEF3C7' },
-  enviado:   { label: 'Enviado',   color: '#1D4ED8', bg: '#DBEAFE' },
-  aceptado:  { label: 'Aceptado',  color: '#065F46', bg: '#D1FAE5' },
-  rechazado: { label: 'Rechazado', color: '#991B1B', bg: '#FEE2E2' },
-  vencido:   { label: 'Vencido',   color: '#475569', bg: '#F1F5F9' },
-};
-
-const TIPO_ICONS: Record<TipoItemPresupuesto, React.ReactNode> = {
-  practica:       <LocalHospitalOutlinedIcon sx={{ fontSize: 16 }} />,
-  tratamiento:    <MedicalServicesOutlinedIcon sx={{ fontSize: 16 }} />,
-  examen_externo: <ScienceOutlinedIcon sx={{ fontSize: 16 }} />,
-};
-
-const TIPO_LABELS: Record<TipoItemPresupuesto, string> = {
-  practica:       'Práctica',
-  tratamiento:    'Tratamiento',
-  examen_externo: 'Examen externo',
-};
-
-const TIPO_COLORS: Record<TipoItemPresupuesto, { bg: string; color: string }> = {
-  practica:       { bg: '#DBEAFE', color: '#1D4ED8' },
-  tratamiento:    { bg: '#EDE9FE', color: '#5B21B6' },
-  examen_externo: { bg: '#FEF3C7', color: '#92400E' },
-};
-
-function formatPrecio(n: number) {
-  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
-}
 
 export default function VerPresupuestoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -78,7 +46,7 @@ export default function VerPresupuestoPage({ params }: { params: Promise<{ id: s
   );
 
   return (
-    <PageContainer titulo="Presupuesto" subtitulo={presupuesto.pacienteNombre ?? 'Sin paciente asignado'} acciones={acciones}>
+    <PageContainer volver="/presupuestos" titulo="Presupuesto" subtitulo={presupuesto.pacienteNombre ?? 'Sin paciente asignado'} acciones={acciones}>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, maxWidth: 900 }}>
 
         {/* Cabecera */}
@@ -87,15 +55,15 @@ export default function VerPresupuestoPage({ params }: { params: Promise<{ id: s
             <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'flex-start' }}>
               <Box sx={{ flex: 1, minWidth: 200 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-                  <Box sx={{ width: 40, height: 40, borderRadius: '10px', backgroundColor: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <PersonOutlinedIcon sx={{ color: '#1D4ED8', fontSize: 20 }} />
+                  <Box sx={{ width: 40, height: 40, borderRadius: '10px', backgroundColor: 'var(--mint)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <PersonOutlinedIcon sx={{ color: 'var(--pink)', fontSize: 20 }} />
                   </Box>
                   <Box>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0F172A', lineHeight: 1.2 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--ink)', lineHeight: 1.2 }}>
                       {presupuesto.pacienteNombre ?? 'Sin paciente asignado'}
                     </Typography>
                     {presupuesto.numero && (
-                      <Typography variant="caption" sx={{ color: '#94A3B8', fontFamily: 'monospace' }}>
+                      <Typography variant="caption" sx={{ color: 'var(--soft)', fontFamily: 'monospace' }}>
                         #{presupuesto.numero}
                       </Typography>
                     )}
@@ -105,7 +73,7 @@ export default function VerPresupuestoPage({ params }: { params: Promise<{ id: s
 
               <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                 <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="caption" sx={{ color: '#64748B', display: 'block' }}>Estado</Typography>
+                  <Typography variant="caption" sx={{ color: 'var(--soft)', display: 'block' }}>Estado</Typography>
                   <Chip
                     label={estadoStyle.label}
                     size="small"
@@ -113,14 +81,14 @@ export default function VerPresupuestoPage({ params }: { params: Promise<{ id: s
                   />
                 </Box>
                 <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="caption" sx={{ color: '#64748B', display: 'block' }}>Fecha</Typography>
+                  <Typography variant="caption" sx={{ color: 'var(--soft)', display: 'block' }}>Fecha</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     {new Date(presupuesto.creadoEn).toLocaleDateString('es-AR')}
                   </Typography>
                 </Box>
                 {presupuesto.validoHasta && (
                   <Box sx={{ textAlign: 'right' }}>
-                    <Typography variant="caption" sx={{ color: '#64748B', display: 'block' }}>Válido hasta</Typography>
+                    <Typography variant="caption" sx={{ color: 'var(--soft)', display: 'block' }}>Válido hasta</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                       {new Date(presupuesto.validoHasta).toLocaleDateString('es-AR')}
                     </Typography>
@@ -130,11 +98,11 @@ export default function VerPresupuestoPage({ params }: { params: Promise<{ id: s
             </Box>
 
             {presupuesto.notas && (
-              <Box sx={{ mt: 2, p: 2, backgroundColor: '#F8FAFC', borderRadius: 2 }}>
-                <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <Box sx={{ mt: 2, p: 2, backgroundColor: 'var(--bg)', borderRadius: 2 }}>
+                <Typography variant="caption" sx={{ color: 'var(--soft)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Notas
                 </Typography>
-                <Typography variant="body2" sx={{ mt: 0.5, color: '#475569' }}>{presupuesto.notas}</Typography>
+                <Typography variant="body2" sx={{ mt: 0.5, color: 'var(--soft)' }}>{presupuesto.notas}</Typography>
               </Box>
             )}
           </CardContent>
@@ -143,7 +111,7 @@ export default function VerPresupuestoPage({ params }: { params: Promise<{ id: s
         {/* Ítems */}
         <Card>
           <CardContent sx={{ p: 3 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0F172A', mb: 2 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--ink)', mb: 2 }}>
               Detalle del presupuesto
             </Typography>
 
@@ -165,17 +133,17 @@ export default function VerPresupuestoPage({ params }: { params: Promise<{ id: s
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.nombre}</Typography>
                         {item.descripcion && (
-                          <Typography variant="caption" sx={{ color: '#94A3B8' }}>{item.descripcion}</Typography>
+                          <Typography variant="caption" sx={{ color: 'var(--soft)' }}>{item.descripcion}</Typography>
                         )}
                         {item.profesional && (
-                          <Typography variant="caption" sx={{ color: '#64748B', display: 'block' }}>
+                          <Typography variant="caption" sx={{ color: 'var(--soft)', display: 'block' }}>
                             Prof.: {item.profesional}{item.institucion ? ` — ${item.institucion}` : ''}
                           </Typography>
                         )}
                       </TableCell>
                       <TableCell>
                         <Chip
-                          icon={TIPO_ICONS[item.tipo] as React.ReactElement}
+                          icon={TIPO_ICONS[item.tipo]}
                           label={TIPO_LABELS[item.tipo]}
                           size="small"
                           sx={{ backgroundColor: tipoStyle.bg, color: tipoStyle.color, fontWeight: 600, fontSize: '0.65rem' }}
@@ -203,13 +171,13 @@ export default function VerPresupuestoPage({ params }: { params: Promise<{ id: s
             <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 240 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2" sx={{ color: '#64748B' }}>Subtotal</Typography>
+                  <Typography variant="body2" sx={{ color: 'var(--soft)' }}>Subtotal</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPrecio(presupuesto.subtotal)}</Typography>
                 </Box>
                 {presupuesto.descuento > 0 && (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography variant="body2" sx={{ color: '#10B981' }}>Descuento</Typography>
-                    <Typography variant="body2" sx={{ color: '#10B981', fontWeight: 600 }}>
+                    <Typography variant="body2" sx={{ color: 'var(--ok)' }}>Descuento</Typography>
+                    <Typography variant="body2" sx={{ color: 'var(--ok)', fontWeight: 600 }}>
                       −{formatPrecio(presupuesto.descuento)}
                     </Typography>
                   </Box>
@@ -217,7 +185,7 @@ export default function VerPresupuestoPage({ params }: { params: Promise<{ id: s
                 <Divider />
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Typography variant="body1" sx={{ fontWeight: 700 }}>TOTAL</Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 800, color: '#2563EB' }}>
+                  <Typography variant="h5" sx={{ fontWeight: 800, color: 'var(--pink)' }}>
                     {formatPrecio(presupuesto.total)}
                   </Typography>
                 </Box>

@@ -1,245 +1,159 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
-import Card from '@mui/material/Card';
-import Typography from '@mui/material/Typography';
-import Button from '@mui/material/Button';
-import TextField from '@mui/material/TextField';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableContainer from '@mui/material/TableContainer';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
-import IconButton from '@mui/material/IconButton';
-import Tooltip from '@mui/material/Tooltip';
-import Avatar from '@mui/material/Avatar';
-import Chip from '@mui/material/Chip';
 import Alert from '@mui/material/Alert';
-import AddIcon from '@mui/icons-material/Add';
-import SearchIcon from '@mui/icons-material/Search';
-import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
-import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
+import PeopleAltRoundedIcon from '@mui/icons-material/PeopleAltRounded';
+import SearchOffRoundedIcon from '@mui/icons-material/SearchOffRounded';
 import PageContainer from '@/components/ui/PageContainer';
 import EmptyState from '@/components/ui/EmptyState';
 import LoadingScreen from '@/components/ui/LoadingScreen';
-import ConfirmarDialogo from '@/components/ui/ConfirmarDialogo';
+import Buscador from '@/components/ui/Buscador';
+import Pildora from '@/components/ui/Pildora';
+import { DISPLAY, tonoDe } from '@/components/ui/estilos';
+import Etiqueta from '@/components/ui/Etiqueta';
 import { usePacientes } from '@/hooks/usePacientes';
+import { useColeccion } from '@/hooks/useRecurso';
+import { hoyIso } from '@/lib/fechas';
+import type { Paciente, Turno } from '@/lib/types';
 
-function iniciales(nombre: string, apellido: string) {
-  return `${nombre[0] ?? ''}${apellido[0] ?? ''}`.toUpperCase();
+/** Un turno está activo mientras todavía se espera al paciente. */
+const ACTIVOS: Turno['estado'][] = ['pendiente', 'confirmado'];
+
+/** "Hoy 10:30" o "vie 2 · 10:30". */
+function cuando(turno: Turno, hoy: string): string {
+  if (turno.fecha === hoy) return `Hoy ${turno.horaInicio}`;
+  const dia = new Date(`${turno.fecha}T00:00:00`).toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' });
+  return `${dia} · ${turno.horaInicio}`;
 }
 
-function avatarColor(str: string) {
-  const colors = ['#2563EB', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899'];
-  let hash = 0;
-  for (const ch of str) hash = ch.charCodeAt(0) + ((hash << 5) - hash);
-  return colors[Math.abs(hash) % colors.length];
+/** Un paciente como figura de persona: la cabeza sobre los hombros, que llevan el nombre. */
+function Persona({ paciente, turno, orden }: { paciente: Paciente; turno?: string; orden: number }) {
+  const nombre = `${paciente.nombre} ${paciente.apellido}`;
+  return (
+    <Box
+      component={Link}
+      href={`/pacientes/${paciente.id}`}
+      className="in"
+      // Sólo los primeros se escalonan: una lista larga no debe tardar en aparecer.
+      style={{ '--n': Math.min(orden, 12) } as React.CSSProperties}
+      sx={{
+        display: 'grid', justifyItems: 'center', color: 'var(--ink)', textDecoration: 'none',
+        transition: 'transform 0.25s var(--spring)',
+        '&:hover': { transform: 'translateY(-6px)' },
+        '&:hover .cabeza': { animation: 'wobble 0.6s' },
+        '&:hover .hombros': { boxShadow: 'var(--shadow)' },
+      }}
+    >
+      {/* La cabeza: sólo un color propio de cada paciente. */}
+      <Box
+        className="cabeza"
+        aria-hidden
+        sx={{
+          position: 'relative', zIndex: 1, width: '5.4rem', height: '5.4rem', borderRadius: '50%',
+          backgroundColor: tonoDe(nombre), border: '0.4rem solid var(--bg)', mb: '-1.6rem',
+        }}
+      />
+      <Box
+        className="hombros"
+        sx={{
+          width: '100%', minWidth: 0, display: 'grid', justifyItems: 'center', gap: 0.75, textAlign: 'center',
+          pt: '2.3rem', pb: 2, px: 1.5,
+          backgroundColor: 'var(--card)', borderRadius: '5rem 5rem 1.5rem 1.5rem',
+          transition: 'box-shadow 0.25s',
+        }}
+      >
+        <Box sx={{ fontWeight: 800, lineHeight: 1.2, maxWidth: '100%', overflowWrap: 'anywhere' }}>{nombre}</Box>
+        {turno && <Etiqueta tono="acento">{turno}</Etiqueta>}
+      </Box>
+    </Box>
+  );
+}
+
+function Grupo({ titulo, cantidad, children }: { titulo: string; cantidad: number; children: React.ReactNode }) {
+  return (
+    <Box component="section" sx={{ mt: 4 }}>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.25, mb: 2 }}>
+        <Box component="h2" sx={{ m: 0, fontFamily: DISPLAY, fontWeight: 800, fontSize: '1.5rem', lineHeight: 1.1 }}>{titulo}</Box>
+        <Box sx={{ color: 'var(--soft)', fontWeight: 800 }}>{cantidad}</Box>
+      </Box>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(10.5rem, 1fr))', gap: 2.5 }}>
+        {children}
+      </Box>
+    </Box>
+  );
 }
 
 export default function PacientesPage() {
   const router = useRouter();
-  const { pacientes, cargando, error, recargar } = usePacientes();
+  const { pacientes, cargando, error } = usePacientes();
+  const hoy = hoyIso();
+  // De hoy en adelante: lo pasado ya no es un turno activo.
+  const { items: turnos } = useColeccion<Turno>(`/api/turnos?desde=${hoy}`, 'Error al cargar turnos');
   const [busqueda, setBusqueda] = useState('');
-  const [eliminando, setEliminando] = useState<string | null>(null);
-  const [dialogoEliminar, setDialogoEliminar] = useState<{ id: string; nombre: string } | null>(null);
+
+  /** El próximo turno activo de cada paciente (la API los devuelve por fecha y hora). */
+  const proximoTurno = useMemo(() => {
+    const mapa = new Map<string, Turno>();
+    for (const t of turnos) {
+      if (ACTIVOS.includes(t.estado) && !mapa.has(t.pacienteId)) mapa.set(t.pacienteId, t);
+    }
+    return mapa;
+  }, [turnos]);
 
   const filtrados = useMemo(() => {
-    if (!busqueda.trim()) return pacientes;
-    const q = busqueda.toLowerCase();
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return pacientes;
     return pacientes.filter(
       (p) =>
-        p.nombre.toLowerCase().includes(q) ||
-        p.apellido.toLowerCase().includes(q) ||
-        p.dni.includes(q) ||
-        p.email?.toLowerCase().includes(q) ||
-        p.telefono.includes(q)
+        `${p.nombre} ${p.apellido}`.toLowerCase().includes(q) ||
+        `${p.apellido} ${p.nombre}`.toLowerCase().includes(q) ||
+        // Fichas viejas pueden no traer estos campos.
+        p.dni?.includes(q) ||
+        p.telefono?.includes(q),
     );
   }, [pacientes, busqueda]);
 
-  async function handleEliminar() {
-    if (!dialogoEliminar) return;
-    setEliminando(dialogoEliminar.id);
-    try {
-      const res = await fetch(`/api/pacientes/${dialogoEliminar.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error();
-      setDialogoEliminar(null);
-      recargar();
-    } finally {
-      setEliminando(null);
-    }
-  }
-
-  const acciones = (
-    <Link href="/pacientes/nuevo" style={{ textDecoration: 'none' }}>
-      <Button variant="contained" startIcon={<AddIcon />}>
-        Nuevo paciente
-      </Button>
-    </Link>
-  );
+  // Con turno: primero quien viene antes. Sin turno: en el orden del padrón.
+  const clave = (t: Turno) => `${t.fecha} ${t.horaInicio}`;
+  const conTurno = filtrados
+    .filter((p) => proximoTurno.has(p.id))
+    .sort((a, b) => clave(proximoTurno.get(a.id)!).localeCompare(clave(proximoTurno.get(b.id)!)));
+  const sinTurno = filtrados.filter((p) => !proximoTurno.has(p.id));
 
   return (
-    <PageContainer
-      titulo="Pacientes"
-      subtitulo={`${pacientes.length} pacientes registrados`}
-      acciones={acciones}
-    >
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
+    <PageContainer titulo="Pacientes" acciones={<Pildora href="/pacientes/nuevo">Paciente</Pildora>}>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      <Card sx={{ overflow: 'hidden' }}>
-        {/* Barra de búsqueda */}
-        <Box sx={{ p: 2, borderBottom: '1px solid #E2E8F0', display: 'flex', gap: 2, alignItems: 'center' }}>
-          <TextField
-            placeholder="Buscar por nombre, apellido, DNI…"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            slotProps={{ input: { startAdornment: <SearchIcon sx={{ color: '#94A3B8', mr: 1, fontSize: 20 }} /> } }}
-            sx={{ maxWidth: 400, flex: 1 }}
-          />
-          {busqueda && (
-            <Typography variant="caption" sx={{ color: '#64748B', whiteSpace: 'nowrap' }}>
-              {filtrados.length} resultado{filtrados.length !== 1 ? 's' : ''}
-            </Typography>
+      <Buscador valor={busqueda} onCambio={setBusqueda} ayuda="Nombre o DNI" cantidad={filtrados.length} />
+
+      {cargando ? (
+        <LoadingScreen />
+      ) : pacientes.length === 0 ? (
+        <EmptyState
+          titulo="Sin pacientes"
+          descripcion="Cargá el primero."
+          icono={<PeopleAltRoundedIcon fontSize="inherit" />}
+          accion={{ label: 'Paciente', onClick: () => router.push('/pacientes/nuevo') }}
+        />
+      ) : filtrados.length === 0 ? (
+        <EmptyState titulo="Nadie con ese nombre" icono={<SearchOffRoundedIcon fontSize="inherit" />} />
+      ) : (
+        <>
+          {conTurno.length > 0 && (
+            <Grupo titulo="Con turno" cantidad={conTurno.length}>
+              {conTurno.map((p, i) => <Persona key={p.id} paciente={p} turno={cuando(proximoTurno.get(p.id)!, hoy)} orden={i} />)}
+            </Grupo>
           )}
-        </Box>
-
-        {cargando ? (
-          <LoadingScreen mensaje="Cargando pacientes..." />
-        ) : filtrados.length === 0 ? (
-          <EmptyState
-            titulo={busqueda ? 'Sin resultados' : 'Sin pacientes aún'}
-            descripcion={
-              busqueda
-                ? `No se encontraron pacientes para "${busqueda}"`
-                : 'Registrá tu primer paciente para comenzar'
-            }
-            icono={<PeopleAltOutlinedIcon sx={{ fontSize: 'inherit' }} />}
-            accion={
-              !busqueda
-                ? { label: 'Agregar paciente', onClick: () => router.push('/pacientes/nuevo') }
-                : undefined
-            }
-          />
-        ) : (
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Paciente</TableCell>
-                  <TableCell>DNI</TableCell>
-                  <TableCell>Teléfono</TableCell>
-                  <TableCell>Obra Social</TableCell>
-                  <TableCell>Grupo Sanguíneo</TableCell>
-                  <TableCell align="right">Acciones</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filtrados.map((p) => (
-                  <TableRow key={p.id} sx={{ cursor: 'pointer' }}>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <Avatar
-                          sx={{
-                            width: 36,
-                            height: 36,
-                            backgroundColor: avatarColor(`${p.nombre}${p.apellido}`),
-                            fontSize: '0.8rem',
-                            fontWeight: 700,
-                          }}
-                        >
-                          {iniciales(p.nombre, p.apellido)}
-                        </Avatar>
-                        <Box>
-                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#0F172A', lineHeight: 1.3 }}>
-                            {p.apellido}, {p.nombre}
-                          </Typography>
-                          {p.email && (
-                            <Typography variant="caption" sx={{ color: '#94A3B8' }}>
-                              {p.email}
-                            </Typography>
-                          )}
-                        </Box>
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontFamily: 'monospace', letterSpacing: '0.05em' }}>
-                        {p.dni}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">{p.telefono}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      {p.obraSocial ? (
-                        <Chip
-                          label={p.obraSocial}
-                          size="small"
-                          sx={{ backgroundColor: '#F1F5F9', color: '#475569', fontSize: '0.7rem' }}
-                        />
-                      ) : (
-                        <Typography variant="caption" sx={{ color: '#CBD5E1' }}>—</Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {p.grupoSanguineo ? (
-                        <Chip
-                          label={p.grupoSanguineo}
-                          size="small"
-                          sx={{ backgroundColor: '#FEE2E2', color: '#991B1B', fontWeight: 600, fontSize: '0.7rem' }}
-                        />
-                      ) : (
-                        <Typography variant="caption" sx={{ color: '#CBD5E1' }}>—</Typography>
-                      )}
-                    </TableCell>
-                    <TableCell align="right">
-                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
-                        <Tooltip title="Ver perfil">
-                          <IconButton size="small" onClick={() => router.push(`/pacientes/${p.id}`)}>
-                            <VisibilityOutlinedIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Editar">
-                          <IconButton size="small" onClick={() => router.push(`/pacientes/${p.id}/editar`)}>
-                            <EditOutlinedIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Eliminar">
-                          <IconButton
-                            size="small"
-                            sx={{ color: '#EF4444' }}
-                            onClick={() => setDialogoEliminar({ id: p.id, nombre: `${p.nombre} ${p.apellido}` })}
-                          >
-                            <DeleteOutlinedIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
-      </Card>
-
-      <ConfirmarDialogo
-        abierto={!!dialogoEliminar}
-        titulo="Eliminar paciente"
-        descripcion={`¿Estás seguro de que deseas eliminar a ${dialogoEliminar?.nombre}? Esta acción no se puede deshacer.`}
-        textoConfirmar="Eliminar"
-        cargando={!!eliminando}
-        onConfirmar={handleEliminar}
-        onCancelar={() => setDialogoEliminar(null)}
-      />
+          {sinTurno.length > 0 && (
+            <Grupo titulo={conTurno.length > 0 ? 'Sin turno' : 'Todos'} cantidad={sinTurno.length}>
+              {sinTurno.map((p, i) => <Persona key={p.id} paciente={p} orden={conTurno.length + i} />)}
+            </Grupo>
+          )}
+        </>
+      )}
     </PageContainer>
   );
 }

@@ -5,7 +5,7 @@ import FormularioDocumento from '@/components/documentos/FormularioDocumento';
 
 export default function NuevoDocumentoPage() {
   return (
-    <PageContainer titulo="Nuevo documento" subtitulo="Cargá un consentimiento, protocolo o hoja de información">
+    <PageContainer volver="/documentos" titulo="Nuevo documento">
       <FormularioDocumento modo="crear" />
     </PageContainer>
   );

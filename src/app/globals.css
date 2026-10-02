@@ -1,25 +1,64 @@
-@import "tailwindcss";
-
+/*
+ * Diseño "Camino". Todo color sale de estos tokens: los componentes nunca usan
+ * un hexadecimal propio, así las cuatro paletas (data-p en <html>) funcionan
+ * sin tocar nada más.
+ *
+ *   --bg / --card      fondo de la página y de las superficies
+ *   --ink / --soft     texto principal y secundario
+ *   --line             bordes y el trazo punteado de los caminos
+ *   --pink             el único color fuerte: acento y atención
+ *   --sun/--mint/--lila tres tonos tranquilos para avatares, etiquetas y bloques
+ *   --solid/--on-solid botones llenos y su texto
+ *   --on-tint/--on-accent texto sobre un tono o sobre el acento
+ */
 :root {
-  --sidebar-width: 260px;
-  --header-height: 64px;
-  --color-primary: #2563EB;
-  --color-primary-light: #EFF6FF;
-  --color-success: #10B981;
-  --color-warning: #F59E0B;
-  --color-danger: #EF4444;
-  --color-surface: #FFFFFF;
-  --color-bg: #F1F5F9;
-  --color-border: #E2E8F0;
-  --color-text: #0F172A;
-  --color-text-muted: #64748B;
+  --bg: #E9F1FF; --ink: #1B2559; --soft: #6B76A8; --line: #C7D6F5; --card: #FFFFFF;
+  --pink: #FF5C8A; --sun: #FFDCE5; --mint: #CDD5F5; --lila: #EFE6DC; --glow: #F2C46D;
+  --solid: #1B2559; --on-solid: #FFFFFF; --on-tint: #1B2559; --on-accent: #FFFFFF;
+  --shade: rgba(27, 37, 89, 0.55);
+
+  --ok: #1E9E6A; --warn: #C97A00; --bad: #D92D4B;
+
+  /* La mascota: cuerpo, detalles sobre el cuerpo y vara. Siguen a la paleta salvo que una los redefina. */
+  --pet: var(--pink); --pet-on: var(--on-accent); --staff: var(--ink);
+  /* Panel de marca de las pantallas de acceso, donde vive la mascota. */
+  --panel: var(--solid); --on-panel: var(--on-solid);
+
+  --shadow: 0 20px 40px -24px var(--shade);
+  --spring: cubic-bezier(0.3, 1.6, 0.5, 1);
+  --dock-width: 5.85rem;
+}
+:root[data-p='menta'] {
+  --bg: #E4F4EE; --ink: #0F3B33; --soft: #5B8177; --line: #BBDCCF; --card: #FFFFFF;
+  --pink: #FF6542; --sun: #FFD9CC; --mint: #C3DCD2; --lila: #EAE5D5;
+  --solid: #0F3B33; --on-tint: #0F3B33; --shade: rgba(15, 59, 51, 0.5);
+}
+:root[data-p='durazno'] {
+  --bg: #FFEFE3; --ink: #3A1D4D; --soft: #8B6B92; --line: #F2D0BA; --card: #FFFDFB;
+  --pink: #E8452C; --sun: #F9D2C4; --mint: #E6D6E6; --lila: #EFE3CF;
+  --solid: #3A1D4D; --on-tint: #3A1D4D; --shade: rgba(58, 29, 77, 0.5);
+}
+:root[data-p='noche'] {
+  color-scheme: dark;
+  --bg: #12172E; --ink: #EDF0FF; --soft: #98A3D0; --line: #38436F; --card: #1F2749;
+  --pink: #FF6F9C; --sun: #5A2E47; --mint: #34467F; --lila: #3A3470; --glow: #FFD27A;
+  --solid: #EDF0FF; --on-solid: #12172E; --on-tint: #EDF0FF; --on-accent: #12172E;
+  --shade: rgba(0, 0, 0, 0.7);
+  --ok: #5FD9A6; --warn: #FFC466; --bad: #FF8098;
 }
 
-@theme inline {
-  --color-background: var(--color-bg);
-  --color-foreground: var(--color-text);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Colegio Médico de Corrientes: el azul y el crema de su escudo, sobre azul noche. */
+:root[data-p='cmc'] {
+  color-scheme: dark;
+  --bg: #070D1F; --ink: #FFF3CC; --soft: #9DB0DA; --line: #2B4480; --card: #142A5C;
+  --pink: #FCE8A0; --sun: #57481C; --mint: #1F3F86; --lila: #26346A; --glow: #FCE8A0;
+  --solid: #FCE8A0; --on-solid: #0B1B40; --on-tint: #FFF3CC; --on-accent: #0B1B40;
+  --shade: rgba(0, 0, 0, 0.75);
+  --ok: #6FE0B0; --warn: #FFD27A; --bad: #FF8A9C;
+  /* La serpiente crema del escudo, sobre una vara azul para que no se confundan. */
+  --pet: #FCE8A0; --pet-on: #0B1B40; --staff: #5C84DE;
+  /* El panel va en el azul del escudo: sobre crema la serpiente no se vería. */
+  --panel: #1B3A6B; --on-panel: #FFF3CC;
 }
 
 * {
@@ -34,11 +73,17 @@ body {
 }
 
 body {
-  background-color: var(--color-bg);
-  color: var(--color-text);
-  font-family: var(--font-geist-sans), Inter, system-ui, sans-serif;
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body), 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.35s;
+}
+
+:focus-visible {
+  outline: 3px solid var(--pink);
+  outline-offset: 3px;
 }
 
 ::-webkit-scrollbar {
@@ -49,17 +94,40 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
+  background: var(--line);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
+  background: var(--soft);
 }
 
-.page-enter {
-  animation: pageEnter 0.2s ease-out;
+/* ─── Movimiento ───────────────────────────────────────────────────────────── */
+
+@keyframes up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes wobble { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-9deg); } 75% { transform: rotate(9deg); } }
+@keyframes hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+@keyframes ping { 0% { box-shadow: 0 0 0 0 currentColor; } 80%, 100% { box-shadow: 0 0 0 12px transparent; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes draw { from { stroke-dashoffset: var(--len); } }
+@keyframes fill { from { height: 0; } }
+
+/* El splash de apertura se ve una vez por pestaña (lo marca el script del <head>). */
+:root[data-visto] .splash-inicial {
+  display: none;
 }
-@keyframes pageEnter {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+
+/* Entrada escalonada: `className="in" style={{ '--n': 2 }}` aparece tercero. */
+.in {
+  animation: up 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(var(--n, 0) * 35ms);
+}
+
+/* Respeta a quien pidió menos movimiento en el sistema operativo. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

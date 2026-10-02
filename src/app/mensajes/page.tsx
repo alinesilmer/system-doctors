@@ -2,59 +2,50 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Box from '@mui/material/Box';
-import Card from '@mui/material/Card';
-import Typography from '@mui/material/Typography';
-import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
-import IconButton from '@mui/material/IconButton';
-import Chip from '@mui/material/Chip';
 import Alert from '@mui/material/Alert';
-import Tooltip from '@mui/material/Tooltip';
-import CircularProgress from '@mui/material/CircularProgress';
-import Divider from '@mui/material/Divider';
-import Badge from '@mui/material/Badge';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
-import SendIcon from '@mui/icons-material/Send';
-import NotificationsOutlinedIcon from '@mui/icons-material/NotificationsOutlined';
-import WhatsAppIcon from '@mui/icons-material/WhatsApp';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
+import SendRoundedIcon from '@mui/icons-material/SendRounded';
+import NotificationsActiveRoundedIcon from '@mui/icons-material/NotificationsActiveRounded';
+import ChatRoundedIcon from '@mui/icons-material/ChatRounded';
+import { pedirApi } from '@/lib/api/cliente';
 import PageContainer from '@/components/ui/PageContainer';
+import LoadingScreen from '@/components/ui/LoadingScreen';
+import EmptyState from '@/components/ui/EmptyState';
+import AvatarIniciales from '@/components/ui/AvatarIniciales';
+import Etiqueta from '@/components/ui/Etiqueta';
+import Pildora from '@/components/ui/Pildora';
+import { DISPLAY, flotante, latido, redondo } from '@/components/ui/estilos';
 import type { ConversacionWA, MensajeWA } from '@/lib/types';
 
-const CLASIFICACION_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  urgencia:       { label: '🚨 Urgencia',        color: '#991B1B', bg: '#FEE2E2' },
-  consulta_medica:{ label: '🩺 Consulta médica', color: '#1E40AF', bg: '#DBEAFE' },
-  receta:         { label: '💊 Receta',           color: '#5B21B6', bg: '#EDE9FE' },
-  turno:          { label: '📅 Turno',            color: '#065F46', bg: '#D1FAE5' },
-  confirmacion:   { label: '✅ Confirmación',     color: '#065F46', bg: '#D1FAE5' },
-  informacion:    { label: 'ℹ️ Información',      color: '#374151', bg: '#F3F4F6' },
-  secretaria:     { label: '📋 Secretaría',       color: '#92400E', bg: '#FEF3C7' },
-  otro:           { label: '💬 Otro',             color: '#475569', bg: '#F1F5F9' },
+/** Una palabra por tipo de mensaje, tal como lo clasificó la IA. */
+const CLASIFICACION: Record<string, string> = {
+  urgencia: 'Urgente',
+  consulta_medica: 'Consulta',
+  receta: 'Receta',
+  turno: 'Turno',
+  confirmacion: 'Confirma',
+  informacion: 'Info',
+  secretaria: 'Secretaría',
+  otro: 'Otro',
 };
 
-const DERIVACION_CONFIG: Record<string, { label: string; color: string }> = {
-  medico:     { label: 'Requiere médico',    color: '#DC2626' },
-  secretaria: { label: 'Para secretaría',   color: '#D97706' },
-  automatico: { label: 'Respondido auto',   color: '#059669' },
-};
+const PRIORIDAD = { urgente: 0, normal: 1, baja: 2 };
 
-function formatHora(iso: string) {
-  return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+interface ResultadoRecordatorios {
+  fecha: string;
+  total: number;
+  enviados: number;
+  yaRecordados: number;
+  resultados: { paciente: string; enviado: boolean; error?: string }[];
 }
 
-function formatFechaCorta(iso: string) {
-  const d = new Date(iso);
-  const hoy = new Date();
-  const diff = Math.floor((hoy.getTime() - d.getTime()) / 86400000);
-  if (diff === 0) return 'Hoy';
-  if (diff === 1) return 'Ayer';
-  return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
-}
+/** Cadencia del sondeo de la bandeja, en milisegundos. */
+const INTERVALO_CONVERSACIONES = 10_000;
+const INTERVALO_MENSAJES = 8_000;
 
 export default function MensajesPage() {
   const [conversaciones, setConversaciones] = useState<ConversacionWA[]>([]);
@@ -67,62 +58,67 @@ export default function MensajesPage() {
   const [error, setError] = useState<string | null>(null);
   const [recordatorioDialogo, setRecordatorioDialogo] = useState(false);
   const [enviandoRecordatorios, setEnviandoRecordatorios] = useState(false);
-  const [resultadoRecordatorio, setResultadoRecordatorio] = useState<Record<string, unknown> | null>(null);
+  const [resultadoRecordatorio, setResultadoRecordatorio] = useState<ResultadoRecordatorios | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const cargarConversaciones = useCallback(async () => {
-    try {
-      const res = await fetch('/api/whatsapp/conversaciones');
-      const data = await res.json();
-      setConversaciones(data.items ?? []);
-    } catch { /* silent */ }
-    finally { setCargando(false); }
+  const cargarConversaciones = useCallback(() => {
+    return pedirApi<{ items: ConversacionWA[] }>('/api/whatsapp/conversaciones')
+      .then((data) => setConversaciones(data.items ?? []))
+      .catch(() => { /* el sondeo reintenta solo */ })
+      .finally(() => setCargando(false));
   }, []);
 
   useEffect(() => {
-    cargarConversaciones();
-    const interval = setInterval(cargarConversaciones, 10000);
+    void cargarConversaciones();
+    const interval = setInterval(() => {
+      // No gastamos lecturas de Firestore mientras la pestaña está en segundo plano.
+      if (document.visibilityState === 'visible') void cargarConversaciones();
+    }, INTERVALO_CONVERSACIONES);
     return () => clearInterval(interval);
   }, [cargarConversaciones]);
 
-  const cargarMensajes = useCallback(async (conv: ConversacionWA) => {
-    setCargandoMensajes(true);
-    try {
-      const res = await fetch(`/api/whatsapp/conversaciones?telefono=${encodeURIComponent(conv.telefono)}`);
-      const data = await res.json();
-      setMensajes(data.items ?? []);
-      setConversaciones((prev) => prev.map((c) => c.id === conv.id ? { ...c, noLeidos: 0 } : c));
-    } catch { /* silent */ }
-    finally { setCargandoMensajes(false); }
+  const cargarMensajes = useCallback((conv: ConversacionWA) => {
+    return pedirApi<{ items: MensajeWA[] }>(`/api/whatsapp/conversaciones?telefono=${encodeURIComponent(conv.telefono)}`)
+      .then((data) => {
+        setMensajes(data.items ?? []);
+        setConversaciones((prev) => prev.map((c) => c.id === conv.id ? { ...c, noLeidos: 0 } : c));
+      })
+      .catch(() => { /* el sondeo reintenta solo */ })
+      .finally(() => setCargandoMensajes(false));
   }, []);
 
   useEffect(() => {
-    if (seleccionada) {
-      cargarMensajes(seleccionada);
-      const interval = setInterval(() => cargarMensajes(seleccionada), 8000);
-      return () => clearInterval(interval);
-    }
+    if (!seleccionada) return;
+    void cargarMensajes(seleccionada);
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') void cargarMensajes(seleccionada);
+    }, INTERVALO_MENSAJES);
+    return () => clearInterval(interval);
   }, [seleccionada, cargarMensajes]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [mensajes]);
 
-  async function enviarRespuesta(texto?: string) {
-    const msg = texto ?? respuesta;
-    if (!msg.trim() || !seleccionada) return;
+  function abrir(conv: ConversacionWA) {
+    if (conv.id === seleccionada?.id) return;
+    setMensajes([]);
+    setRespuesta('');
+    setCargandoMensajes(true);
+    setSeleccionada(conv);
+  }
+
+  async function enviarRespuesta() {
+    if (!respuesta.trim() || !seleccionada) return;
     setEnviando(true);
     setError(null);
     try {
-      const res = await fetch('/api/whatsapp/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telefono: seleccionada.telefono, mensaje: msg }),
+      await pedirApi('/api/whatsapp/send', {
+        metodo: 'POST',
+        cuerpo: { telefono: seleccionada.telefono, mensaje: respuesta },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
       setRespuesta('');
-      cargarMensajes(seleccionada);
+      void cargarMensajes(seleccionada);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -133,261 +129,181 @@ export default function MensajesPage() {
   async function enviarRecordatorios() {
     setEnviandoRecordatorios(true);
     try {
-      const res = await fetch('/api/whatsapp/reminders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-      const data = await res.json();
-      setResultadoRecordatorio(data);
+      setResultadoRecordatorio(await pedirApi<ResultadoRecordatorios>('/api/whatsapp/reminders', {
+        metodo: 'POST',
+        cuerpo: {},
+        mensajeError: 'No se pudieron enviar los recordatorios',
+      }));
     } catch (e) {
+      setRecordatorioDialogo(false);
       setError((e as Error).message);
     } finally {
       setEnviandoRecordatorios(false);
     }
   }
 
-  const sortedConversaciones = [...conversaciones].sort((a, b) => {
-    const pri = { urgente: 0, normal: 1, baja: 2 };
-    const pd = (pri[a.prioridad] ?? 2) - (pri[b.prioridad] ?? 2);
-    if (pd !== 0) return pd;
-    return b.ultimaActividad.localeCompare(a.ultimaActividad);
-  });
+  const ordenadas = [...conversaciones].sort((a, b) =>
+    (PRIORIDAD[a.prioridad] ?? 2) - (PRIORIDAD[b.prioridad] ?? 2) || b.ultimaActividad.localeCompare(a.ultimaActividad));
 
-  const acciones = (
-    <Box sx={{ display: 'flex', gap: 1 }}>
-      <Button
-        variant="outlined"
-        startIcon={<NotificationsOutlinedIcon />}
-        onClick={() => setRecordatorioDialogo(true)}
-        size="small"
-      >
-        Recordatorios mañana
-      </Button>
-      <IconButton size="small" onClick={cargarConversaciones} title="Actualizar">
-        <RefreshIcon fontSize="small" />
-      </IconButton>
-    </Box>
-  );
+  // Respuestas que sugirió la IA para lo que todavía no se contestó: quedan a un toque.
+  const sugerencias = [...new Set(
+    mensajes.filter((m) => m.direccion === 'entrante' && !m.respondido && m.respuestaSugerida).map((m) => m.respuestaSugerida!),
+  )].slice(-3);
+
+  const ultimaClasificacion = [...mensajes].reverse().find((m) => m.clasificacion)?.clasificacion;
+  const nombreDe = (c: ConversacionWA) => c.nombre ?? c.telefono;
 
   return (
-    <PageContainer titulo="Mensajes WhatsApp" subtitulo="Bandeja de entrada con clasificación IA" acciones={acciones}>
+    <PageContainer
+      titulo="Mensajes"
+      acciones={<Pildora icono={<NotificationsActiveRoundedIcon />} onClick={() => setRecordatorioDialogo(true)}>Recordar mañana</Pildora>}
+    >
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
 
-      <Card sx={{ overflow: 'hidden', display: 'flex', height: 'calc(100vh - 180px)', minHeight: 500 }}>
-        {/* Conversation list */}
-        <Box sx={{ width: 320, flexShrink: 0, borderRight: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
-            <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              Conversaciones
-            </Typography>
-          </Box>
-          {cargando ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress size={24} /></Box>
-          ) : sortedConversaciones.length === 0 ? (
-            <Box sx={{ p: 4, textAlign: 'center' }}>
-              <WhatsAppIcon sx={{ fontSize: 40, color: '#CBD5E1', mb: 1 }} />
-              <Typography variant="caption" sx={{ color: '#94A3B8', display: 'block' }}>
-                Sin mensajes aún. Configurá el webhook de Twilio para empezar a recibir mensajes.
-              </Typography>
-            </Box>
-          ) : (
-            <Box sx={{ flex: 1, overflowY: 'auto' }}>
-              {sortedConversaciones.map((conv) => {
-                const isSelected = seleccionada?.id === conv.id;
-                const isUrgente = conv.prioridad === 'urgente';
-                return (
-                  <Box
-                    key={conv.id}
-                    onClick={() => { setSeleccionada(conv); setRespuesta(''); }}
-                    sx={{
-                      px: 2, py: 1.5,
-                      cursor: 'pointer',
-                      borderBottom: '1px solid #F8FAFC',
-                      backgroundColor: isSelected ? '#EFF6FF' : isUrgente ? '#FFF5F5' : 'transparent',
-                      borderLeft: isUrgente ? '3px solid #EF4444' : isSelected ? '3px solid #2563EB' : '3px solid transparent',
-                      '&:hover': { backgroundColor: isSelected ? '#EFF6FF' : '#F8FAFC' },
-                      transition: 'background-color 0.1s',
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                      <Box sx={{
-                        width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-                        backgroundColor: isUrgente ? '#FEE2E2' : '#EFF6FF',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        <WhatsAppIcon sx={{ fontSize: 18, color: isUrgente ? '#DC2626' : '#25D366' }} />
-                      </Box>
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#0F172A', fontSize: '0.82rem' }}>
-                            {conv.nombre ?? conv.telefono}
-                          </Typography>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-                            <Typography variant="caption" sx={{ color: '#94A3B8', fontSize: '0.65rem' }}>
-                              {formatFechaCorta(conv.ultimaActividad)}
-                            </Typography>
-                            {conv.noLeidos > 0 && (
-                              <Badge badgeContent={conv.noLeidos} color="primary" sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem', minWidth: 16, height: 16 } }} />
-                            )}
-                          </Box>
-                        </Box>
-                        <Typography variant="caption" sx={{ color: '#64748B', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', mt: 0.25 }}>
-                          {conv.ultimoMensaje}
-                        </Typography>
-                        {isUrgente && (
-                          <Chip label="URGENTE" size="small" sx={{ mt: 0.5, height: 16, fontSize: '0.55rem', backgroundColor: '#FEE2E2', color: '#991B1B', fontWeight: 700 }} />
-                        )}
-                      </Box>
-                    </Box>
-                  </Box>
-                );
-              })}
-            </Box>
-          )}
-        </Box>
-
-        {/* Message thread */}
-        {!seleccionada ? (
-          <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 2, color: '#94A3B8' }}>
-            <WhatsAppIcon sx={{ fontSize: 56, color: '#CBD5E1' }} />
-            <Typography variant="body2">Seleccioná una conversación para ver los mensajes</Typography>
-          </Box>
-        ) : (
-          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {/* Thread header */}
-            <Box sx={{ px: 2.5, py: 1.5, borderBottom: '1px solid #E2E8F0', backgroundColor: '#F8FAFC', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Box sx={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <WhatsAppIcon sx={{ fontSize: 18, color: '#25D366' }} />
-              </Box>
-              <Box>
-                <Typography variant="body2" sx={{ fontWeight: 700, color: '#0F172A' }}>
-                  {seleccionada.nombre ?? seleccionada.telefono}
-                </Typography>
-                <Typography variant="caption" sx={{ color: '#64748B' }}>{seleccionada.telefono}</Typography>
-              </Box>
-            </Box>
-
-            {/* Messages */}
-            <Box ref={scrollRef} sx={{ flex: 1, overflowY: 'auto', px: 2.5, py: 2, display: 'flex', flexDirection: 'column', gap: 1.5, backgroundColor: '#F0F2F5' }}>
-              {cargandoMensajes && mensajes.length === 0 ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress size={24} /></Box>
-              ) : mensajes.map((m) => {
-                const esSaliente = m.direccion === 'saliente';
-                const cfg = m.clasificacion ? CLASIFICACION_CONFIG[m.clasificacion] : null;
-                const derCfg = m.derivarA ? DERIVACION_CONFIG[m.derivarA] : null;
-
-                return (
-                  <Box key={m.id} sx={{ display: 'flex', flexDirection: esSaliente ? 'row-reverse' : 'row', gap: 1, alignItems: 'flex-end' }}>
-                    <Box sx={{ maxWidth: '75%' }}>
-                      {/* Classification badges */}
-                      {!esSaliente && (cfg || derCfg) && (
-                        <Box sx={{ display: 'flex', gap: 0.5, mb: 0.5, flexDirection: 'row', flexWrap: 'wrap' }}>
-                          {cfg && (
-                            <Chip label={cfg.label} size="small" sx={{ height: 18, fontSize: '0.6rem', backgroundColor: cfg.bg, color: cfg.color, fontWeight: 700 }} />
-                          )}
-                          {derCfg && (
-                            <Chip label={derCfg.label} size="small" sx={{ height: 18, fontSize: '0.6rem', backgroundColor: '#F1F5F9', color: derCfg.color, fontWeight: 600 }} />
-                          )}
-                        </Box>
-                      )}
-
-                      {/* Bubble */}
-                      <Box sx={{
-                        px: 1.5, py: 1,
-                        backgroundColor: esSaliente ? '#DCF8C6' : '#fff',
-                        borderRadius: esSaliente ? '12px 4px 12px 12px' : '4px 12px 12px 12px',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
-                      }}>
-                        <Typography variant="body2" sx={{ color: '#0F172A', whiteSpace: 'pre-wrap', lineHeight: 1.5, fontSize: '0.85rem' }}>
-                          {m.cuerpo}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: '#94A3B8', display: 'block', textAlign: 'right', mt: 0.25, fontSize: '0.6rem' }}>
-                          {formatHora(m.creadoEn)}
-                        </Typography>
-                      </Box>
-
-                      {/* Resumen IA */}
-                      {!esSaliente && m.resumen && (
-                        <Typography variant="caption" sx={{ color: '#7C3AED', display: 'block', mt: 0.5, fontStyle: 'italic', fontSize: '0.68rem' }}>
-                          <SmartToyOutlinedIcon sx={{ fontSize: 10, mr: 0.25, verticalAlign: 'middle' }} />
-                          {m.resumen}
-                        </Typography>
-                      )}
-
-                      {/* Suggested reply */}
-                      {!esSaliente && m.respuestaSugerida && !m.respondido && (
-                        <Box sx={{ mt: 0.75, p: 1, backgroundColor: '#FFFBEB', border: '1px dashed #FCD34D', borderRadius: 1 }}>
-                          <Typography variant="caption" sx={{ color: '#92400E', fontWeight: 600, display: 'block', mb: 0.5, fontSize: '0.65rem' }}>
-                            💡 Sugerencia IA:
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: '#78350F', display: 'block', lineHeight: 1.5, fontSize: '0.72rem' }}>
-                            {m.respuestaSugerida}
-                          </Typography>
-                          <Box sx={{ display: 'flex', gap: 0.5, mt: 0.75 }}>
-                            <Tooltip title="Copiar sugerencia al campo de respuesta">
-                              <Button size="small" variant="outlined" startIcon={<ContentCopyIcon sx={{ fontSize: '0.65rem !important' }} />}
-                                sx={{ fontSize: '0.62rem', py: 0.25, px: 0.75, minHeight: 'auto', borderColor: '#FCD34D', color: '#92400E' }}
-                                onClick={() => setRespuesta(m.respuestaSugerida!)}
-                              >
-                                Usar sugerencia
-                              </Button>
-                            </Tooltip>
-                          </Box>
-                        </Box>
-                      )}
-                    </Box>
-                  </Box>
-                );
-              })}
-            </Box>
-
-            {/* Compose area */}
-            <Box sx={{ px: 2, py: 1.5, borderTop: '1px solid #E2E8F0', backgroundColor: '#fff' }}>
-              <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
-                <TextField
-                  fullWidth
-                  multiline
-                  maxRows={4}
-                  size="small"
-                  placeholder={`Responder a ${seleccionada.nombre ?? seleccionada.telefono}…`}
-                  value={respuesta}
-                  onChange={(e) => setRespuesta(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarRespuesta(); } }}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}
-                />
-                <IconButton
-                  onClick={() => enviarRespuesta()}
-                  disabled={!respuesta.trim() || enviando}
-                  sx={{ color: '#fff', backgroundColor: '#25D366', '&:hover': { backgroundColor: '#128C7E' }, '&:disabled': { backgroundColor: '#E2E8F0' } }}
+      {cargando ? (
+        <LoadingScreen />
+      ) : ordenadas.length === 0 ? (
+        <EmptyState titulo="Bandeja vacía" descripcion="Los mensajes de WhatsApp aparecen acá." icono={<ChatRoundedIcon fontSize="inherit" />} />
+      ) : (
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 19rem) minmax(0, 1fr)' }, gap: 2.5, alignItems: 'start' }}>
+          {/* Conversaciones */}
+          <Box className="in" style={{ '--n': 1 } as React.CSSProperties} sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 1 }}>
+            {ordenadas.map((conv) => {
+              const elegida = seleccionada?.id === conv.id;
+              const urgente = conv.prioridad === 'urgente';
+              return (
+                <Box
+                  key={conv.id}
+                  component="button"
+                  onClick={() => abrir(conv)}
+                  aria-pressed={elegida}
+                  sx={{
+                    display: 'flex', alignItems: 'center', gap: 1.25, p: 1.25, borderRadius: '1.5rem', textAlign: 'left',
+                    border: 0, cursor: 'pointer', font: 'inherit',
+                    backgroundColor: elegida ? 'var(--solid)' : 'var(--card)', color: elegida ? 'var(--on-solid)' : 'var(--ink)',
+                    transition: 'transform 0.2s var(--spring), background-color 0.2s, color 0.2s',
+                    '&:hover': { transform: 'translateX(5px)' },
+                  }}
                 >
-                  {enviando ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : <SendIcon fontSize="small" />}
-                </IconButton>
-              </Box>
-              <Typography variant="caption" sx={{ color: '#94A3B8', mt: 0.5, display: 'block' }}>
-                Enter para enviar · Shift+Enter nueva línea
-              </Typography>
-            </Box>
+                  <AvatarIniciales nombre={nombreDe(conv)} tam={3} />
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Box sx={{ fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nombreDe(conv)}</Box>
+                    <Box sx={{ opacity: 0.7, fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conv.ultimoMensaje}</Box>
+                  </Box>
+                  {urgente && <Box sx={latido} />}
+                  {conv.noLeidos > 0 && (
+                    <Box sx={{ minWidth: '1.5rem', height: '1.5rem', px: 0.5, borderRadius: '999px', display: 'grid', placeItems: 'center', backgroundColor: 'var(--pink)', color: 'var(--on-accent)', fontWeight: 800, fontSize: '0.78rem' }}>
+                      {conv.noLeidos}
+                    </Box>
+                  )}
+                </Box>
+              );
+            })}
           </Box>
-        )}
-      </Card>
 
-      {/* Reminders dialog */}
-      <Dialog open={recordatorioDialogo} onClose={() => { setRecordatorioDialogo(false); setResultadoRecordatorio(null); }} maxWidth="sm" fullWidth>
-        <DialogTitle>Enviar recordatorios de turno</DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
+          {/* Chat */}
+          <Box className="in" style={{ '--n': 2 } as React.CSSProperties} sx={{ ...flotante, display: 'flex', flexDirection: 'column', p: 2.5, height: { md: 'calc(100vh - 12rem)' }, minHeight: '26rem' }}>
+            {!seleccionada ? (
+              <EmptyState titulo="Elegí un chat" icono={<ChatRoundedIcon fontSize="inherit" />} />
+            ) : (
+              <>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pb: 2, borderBottom: '3px dotted var(--line)' }}>
+                  <AvatarIniciales nombre={nombreDe(seleccionada)} tam={3} />
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Box sx={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: '1.3rem', lineHeight: 1.1 }}>{nombreDe(seleccionada)}</Box>
+                    <Box sx={{ color: 'var(--soft)', fontSize: '0.85rem' }}>{seleccionada.telefono}</Box>
+                  </Box>
+                  {seleccionada.prioridad === 'urgente'
+                    ? <Etiqueta tono="acento">Urgente</Etiqueta>
+                    : ultimaClasificacion && <Etiqueta>{CLASIFICACION[ultimaClasificacion] ?? 'Otro'}</Etiqueta>}
+                </Box>
+
+                <Box ref={scrollRef} aria-live="polite" sx={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1, py: 2 }}>
+                  {cargandoMensajes && mensajes.length === 0 ? <LoadingScreen /> : mensajes.map((m) => {
+                    const mio = m.direccion === 'saliente';
+                    return (
+                      <Box
+                        key={m.id}
+                        sx={{
+                          maxWidth: '80%', px: 2, py: 1, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere',
+                          alignSelf: mio ? 'flex-end' : 'flex-start',
+                          backgroundColor: mio ? 'var(--solid)' : 'var(--bg)', color: mio ? 'var(--on-solid)' : 'var(--ink)',
+                          borderRadius: mio ? '1.3rem 1.3rem 0.35rem 1.3rem' : '1.3rem 1.3rem 1.3rem 0.35rem',
+                          animation: 'up 0.35s both',
+                        }}
+                      >
+                        {m.cuerpo}
+                        <Box sx={{ fontSize: '0.7rem', opacity: 0.6, textAlign: 'right', mt: 0.25 }}>
+                          {new Date(m.creadoEn).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                        </Box>
+                      </Box>
+                    );
+                  })}
+                </Box>
+
+                {sugerencias.length > 0 && (
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', pb: 1.5 }}>
+                    {sugerencias.map((s) => (
+                      <Box
+                        key={s}
+                        component="button"
+                        onClick={() => setRespuesta(s)}
+                        title={s}
+                        sx={{
+                          maxWidth: '100%', px: 1.75, py: 0.75, borderRadius: '999px', border: 0, cursor: 'pointer', font: 'inherit',
+                          fontWeight: 800, fontSize: '0.85rem', backgroundColor: 'var(--mint)', color: 'var(--on-tint)',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          transition: 'transform 0.2s var(--spring)', '&:hover': { transform: 'translateY(-3px)' },
+                        }}
+                      >
+                        {s}
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+
+                <Box
+                  component="form"
+                  onSubmit={(e) => { e.preventDefault(); void enviarRespuesta(); }}
+                  sx={{ display: 'flex', alignItems: 'center', gap: 1, backgroundColor: 'var(--bg)', borderRadius: '999px', p: '0.3rem 0.3rem 0.3rem 1.2rem' }}
+                >
+                  <Box
+                    component="input"
+                    value={respuesta}
+                    onChange={(e) => setRespuesta(e.target.value)}
+                    placeholder="Escribir…"
+                    aria-label="Mensaje"
+                    autoComplete="off"
+                    sx={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: 'none', color: 'inherit', font: 'inherit', py: '0.7rem' }}
+                  />
+                  <Box component="button" type="submit" aria-label="Enviar" disabled={!respuesta.trim() || enviando} sx={{ ...redondo, '&:disabled': { opacity: 0.4, cursor: 'default' } }}>
+                    <SendRoundedIcon />
+                  </Box>
+                </Box>
+              </>
+            )}
+          </Box>
+        </Box>
+      )}
+
+      {/* Recordatorios */}
+      <Dialog open={recordatorioDialogo} onClose={() => { setRecordatorioDialogo(false); setResultadoRecordatorio(null); }} maxWidth="xs" fullWidth>
+        <DialogTitle>Recordar mañana</DialogTitle>
+        <DialogContent>
           {!resultadoRecordatorio ? (
-            <Alert severity="info">
-              Se enviará un recordatorio de WhatsApp a todos los pacientes con turnos <strong>confirmados o pendientes de mañana</strong>.
-              <br /><br />
-              ⚠️ En modo sandbox de Twilio, solo recibirán el mensaje quienes hayan escrito primero al número de sandbox.
-            </Alert>
+            <Box sx={{ color: 'var(--soft)' }}>Un WhatsApp a cada paciente con turno mañana.</Box>
           ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-              <Alert severity="success">
-                Se enviaron {(resultadoRecordatorio as Record<string, number>).enviados} de {(resultadoRecordatorio as Record<string, number>).total} recordatorios para el {resultadoRecordatorio.fecha as string}.
-              </Alert>
-              {((resultadoRecordatorio as { resultados?: Array<{ paciente: string; enviado: boolean; error?: string }> }).resultados ?? []).map((r, i) => (
-                <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
-                  <Typography variant="body2">{r.paciente}</Typography>
-                  <Chip label={r.enviado ? '✓ Enviado' : r.error ?? 'Error'} size="small"
-                    sx={{ backgroundColor: r.enviado ? '#D1FAE5' : '#FEE2E2', color: r.enviado ? '#065F46' : '#991B1B', fontSize: '0.65rem' }} />
+            <Box sx={{ display: 'grid', gap: 1 }}>
+              <Box sx={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: '1.6rem' }}>
+                {resultadoRecordatorio.enviados} de {resultadoRecordatorio.total} enviados
+              </Box>
+              {resultadoRecordatorio.yaRecordados > 0 && (
+                <Box sx={{ color: 'var(--soft)' }}>{resultadoRecordatorio.yaRecordados} ya estaban avisados.</Box>
+              )}
+              {resultadoRecordatorio.resultados.map((r, i) => (
+                <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, py: 0.5 }}>
+                  <Box sx={{ fontWeight: 800 }}>{r.paciente}</Box>
+                  <Etiqueta tono={r.enviado ? 'ok' : 'mal'}>{r.enviado ? 'Enviado' : r.error ?? 'Error'}</Etiqueta>
                 </Box>
               ))}
             </Box>
@@ -396,8 +312,8 @@ export default function MensajesPage() {
         <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
           <Button variant="outlined" onClick={() => { setRecordatorioDialogo(false); setResultadoRecordatorio(null); }}>Cerrar</Button>
           {!resultadoRecordatorio && (
-            <Button variant="contained" startIcon={<NotificationsOutlinedIcon />} disabled={enviandoRecordatorios} onClick={enviarRecordatorios}>
-              {enviandoRecordatorios ? 'Enviando...' : 'Enviar recordatorios'}
+            <Button variant="contained" disabled={enviandoRecordatorios} onClick={enviarRecordatorios}>
+              {enviandoRecordatorios ? 'Enviando…' : 'Enviar'}
             </Button>
           )}
         </DialogActions>

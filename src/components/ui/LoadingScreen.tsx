@@ -1,23 +1,12 @@
 import Box from '@mui/material/Box';
-import CircularProgress from '@mui/material/CircularProgress';
-import Typography from '@mui/material/Typography';
+import LineaDePulso from './LineaDePulso';
 
-export default function LoadingScreen({ mensaje = 'Cargando...' }: { mensaje?: string }) {
+/** Espera: un pulso que recorre la línea de signos vitales. */
+export default function LoadingScreen({ mensaje = 'Cargando' }: { mensaje?: string }) {
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 2,
-        py: 12,
-      }}
-    >
-      <CircularProgress size={36} thickness={3} />
-      <Typography variant="body2" sx={{ color: '#94A3B8' }}>
-        {mensaje}
-      </Typography>
+    <Box role="status" sx={{ display: 'grid', justifyItems: 'center', gap: 1.5, py: 10 }}>
+      <LineaDePulso />
+      <Box sx={{ color: 'var(--soft)', fontWeight: 800 }}>{mensaje.replace(/\.+$/, '')}</Box>
     </Box>
   );
 }

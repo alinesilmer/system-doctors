@@ -15,6 +15,9 @@ import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlineOutlined';
+import { GRUPOS_SANGUINEOS, OBRAS_SOCIALES } from '@/lib/catalogos';
+import { calcularEdad } from '@/lib/fechas';
+import { pedirApi } from '@/lib/api/cliente';
 import type { SexoBiologico } from '@/lib/types';
 
 const SEXO_OPCIONES: { value: SexoBiologico; label: string }[] = [
@@ -23,25 +26,6 @@ const SEXO_OPCIONES: { value: SexoBiologico; label: string }[] = [
   { value: 'otro', label: 'Otro' },
   { value: 'no_especificado', label: 'Prefiero no decir' },
 ];
-
-const GRUPOS_SANGUINEOS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-
-const OBRAS_SOCIALES = [
-  'OSDE', 'Swiss Medical', 'Galeno', 'IOMA', 'PAMI', 'Medifé',
-  'Sancor Salud', 'Omint', 'Federada Salud', 'Subsidio del Estado',
-  'DOSEP', 'IAPOS', 'OSECAC', 'Jerárquicos Salud', 'Particular / Sin cobertura',
-];
-
-function calcularEdad(fechaNacimiento: string): string {
-  if (!fechaNacimiento) return '';
-  const nac = new Date(fechaNacimiento + 'T00:00:00');
-  const hoy = new Date();
-  let edad = hoy.getFullYear() - nac.getFullYear();
-  const m = hoy.getMonth() - nac.getMonth();
-  if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) edad--;
-  if (edad < 0 || edad > 130) return '';
-  return `${edad} años`;
-}
 
 const VACIO = {
   nombre: '', apellido: '', dni: '', fechaNacimiento: '',
@@ -59,13 +43,8 @@ export default function RegistroPacientePage({ params }: { params: Promise<{ tok
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/invitaciones/${token}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.error) return setEstado('invalido');
-        if (d.data?.estado === 'pendiente') setEstado('activo');
-        else setEstado('completado');
-      })
+    pedirApi<{ data?: { estado?: string } }>(`/api/invitaciones/${token}`)
+      .then((d) => setEstado(d.data?.estado === 'pendiente' ? 'activo' : 'completado'))
       .catch(() => setEstado('invalido'));
   }, [token]);
 
@@ -82,13 +61,7 @@ export default function RegistroPacientePage({ params }: { params: Promise<{ tok
     setEnviando(true);
     setError(null);
     try {
-      const res = await fetch(`/api/invitaciones/${token}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Error al enviar');
+      await pedirApi(`/api/invitaciones/${token}`, { metodo: 'POST', cuerpo: form, mensajeError: 'Error al enviar' });
       setEstado('completado');
     } catch (e) {
       setError((e as Error).message);
@@ -99,7 +72,7 @@ export default function RegistroPacientePage({ params }: { params: Promise<{ tok
 
   if (estado === 'verificando') {
     return (
-      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC' }}>
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg)' }}>
         <CircularProgress />
       </Box>
     );
@@ -107,11 +80,11 @@ export default function RegistroPacientePage({ params }: { params: Promise<{ tok
 
   if (estado === 'invalido') {
     return (
-      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC', p: 2 }}>
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg)', p: 2 }}>
         <Card sx={{ p: 4, maxWidth: 420, textAlign: 'center' }}>
-          <ErrorOutlineIcon sx={{ fontSize: 56, color: '#EF4444', mb: 2 }} />
-          <Typography variant="h5" sx={{ mb: 1, color: '#0F172A' }}>Enlace inválido</Typography>
-          <Typography variant="body2" sx={{ color: '#64748B' }}>
+          <ErrorOutlineIcon sx={{ fontSize: 56, color: 'var(--bad)', mb: 2 }} />
+          <Typography variant="h5" sx={{ mb: 1, color: 'var(--ink)' }}>Enlace inválido</Typography>
+          <Typography variant="body2" sx={{ color: 'var(--soft)' }}>
             Este enlace no existe o ha expirado. Solicitá uno nuevo a tu médico.
           </Typography>
         </Card>
@@ -121,11 +94,11 @@ export default function RegistroPacientePage({ params }: { params: Promise<{ tok
 
   if (estado === 'completado') {
     return (
-      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC', p: 2 }}>
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg)', p: 2 }}>
         <Card sx={{ p: 4, maxWidth: 420, textAlign: 'center' }}>
-          <CheckCircleOutlineIcon sx={{ fontSize: 56, color: '#059669', mb: 2 }} />
-          <Typography variant="h5" sx={{ mb: 1, color: '#0F172A' }}>¡Datos recibidos!</Typography>
-          <Typography variant="body2" sx={{ color: '#64748B' }}>
+          <CheckCircleOutlineIcon sx={{ fontSize: 56, color: 'var(--ok)', mb: 2 }} />
+          <Typography variant="h5" sx={{ mb: 1, color: 'var(--ink)' }}>¡Datos recibidos!</Typography>
+          <Typography variant="body2" sx={{ color: 'var(--soft)' }}>
             Tu información fue enviada correctamente. El médico revisará tus datos y te dará el turno.
           </Typography>
         </Card>
@@ -134,14 +107,14 @@ export default function RegistroPacientePage({ params }: { params: Promise<{ tok
   }
 
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: '#F8FAFC', py: 4, px: 2 }}>
+    <Box sx={{ minHeight: '100vh', backgroundColor: 'var(--bg)', py: 4, px: 2 }}>
       <Box sx={{ maxWidth: 680, mx: 'auto' }}>
         {/* Header */}
         <Box sx={{ textAlign: 'center', mb: 4 }}>
-          <Typography variant="h4" sx={{ color: '#0F172A', fontWeight: 700, mb: 0.5 }}>
+          <Typography variant="h4" sx={{ color: 'var(--ink)', fontWeight: 700, mb: 0.5 }}>
             Formulario de registro
           </Typography>
-          <Typography variant="body2" sx={{ color: '#64748B' }}>
+          <Typography variant="body2" sx={{ color: 'var(--soft)' }}>
             Completá tus datos para que tu médico pueda atenderte. Todo es confidencial.
           </Typography>
         </Box>
@@ -153,8 +126,8 @@ export default function RegistroPacientePage({ params }: { params: Promise<{ tok
             {/* Datos personales */}
             <Grid size={12}>
               <Card sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ color: '#475569', fontWeight: 600, mb: 1 }}>Datos personales</Typography>
-                <Divider sx={{ mb: 2, borderColor: '#F1F5F9' }} />
+                <Typography variant="h6" sx={{ color: 'var(--soft)', fontWeight: 600, mb: 1 }}>Datos personales</Typography>
+                <Divider sx={{ mb: 2, borderColor: 'var(--bg)' }} />
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField label="Nombre *" value={form.nombre} onChange={(e) => set('nombre', e.target.value)} fullWidth required />
@@ -176,7 +149,7 @@ export default function RegistroPacientePage({ params }: { params: Promise<{ tok
                         slotProps={{ inputLabel: { shrink: true } }}
                       />
                       {calcularEdad(form.fechaNacimiento) && (
-                        <Chip label={calcularEdad(form.fechaNacimiento)} size="small" sx={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', backgroundColor: '#F0F9FF', color: '#0369A1', fontSize: '0.7rem', height: 20, pointerEvents: 'none' }} />
+                        <Chip label={calcularEdad(form.fechaNacimiento)} size="small" sx={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', backgroundColor: 'var(--mint)', color: 'var(--pink)', fontSize: '0.7rem', height: 20, pointerEvents: 'none' }} />
                       )}
                     </Box>
                   </Grid>
@@ -192,8 +165,8 @@ export default function RegistroPacientePage({ params }: { params: Promise<{ tok
             {/* Contacto */}
             <Grid size={{ xs: 12, md: 6 }}>
               <Card sx={{ p: 3, height: '100%' }}>
-                <Typography variant="h6" sx={{ color: '#475569', fontWeight: 600, mb: 1 }}>Contacto</Typography>
-                <Divider sx={{ mb: 2, borderColor: '#F1F5F9' }} />
+                <Typography variant="h6" sx={{ color: 'var(--soft)', fontWeight: 600, mb: 1 }}>Contacto</Typography>
+                <Divider sx={{ mb: 2, borderColor: 'var(--bg)' }} />
                 <Grid container spacing={2}>
                   <Grid size={12}>
                     <TextField label="Teléfono *" value={form.telefono} onChange={(e) => set('telefono', e.target.value)} fullWidth required inputMode="tel" />
@@ -211,8 +184,8 @@ export default function RegistroPacientePage({ params }: { params: Promise<{ tok
             {/* Cobertura */}
             <Grid size={{ xs: 12, md: 6 }}>
               <Card sx={{ p: 3, height: '100%' }}>
-                <Typography variant="h6" sx={{ color: '#475569', fontWeight: 600, mb: 1 }}>Cobertura médica</Typography>
-                <Divider sx={{ mb: 2, borderColor: '#F1F5F9' }} />
+                <Typography variant="h6" sx={{ color: 'var(--soft)', fontWeight: 600, mb: 1 }}>Cobertura médica</Typography>
+                <Divider sx={{ mb: 2, borderColor: 'var(--bg)' }} />
                 <Grid container spacing={2}>
                   <Grid size={12}>
                     <Autocomplete
@@ -239,8 +212,8 @@ export default function RegistroPacientePage({ params }: { params: Promise<{ tok
             {/* Clínico */}
             <Grid size={12}>
               <Card sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ color: '#475569', fontWeight: 600, mb: 1 }}>Información clínica</Typography>
-                <Divider sx={{ mb: 2, borderColor: '#F1F5F9' }} />
+                <Typography variant="h6" sx={{ color: 'var(--soft)', fontWeight: 600, mb: 1 }}>Información clínica</Typography>
+                <Divider sx={{ mb: 2, borderColor: 'var(--bg)' }} />
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, md: 6 }}>
                     <TextField label="Alergias conocidas" value={form.alergias} onChange={(e) => set('alergias', e.target.value)} fullWidth multiline rows={3} placeholder="Ej: Penicilina, aspirina, látex…" />
@@ -256,7 +229,7 @@ export default function RegistroPacientePage({ params }: { params: Promise<{ tok
               <Button type="submit" variant="contained" size="large" fullWidth disabled={enviando} sx={{ py: 1.5, fontSize: '1rem' }}>
                 {enviando ? 'Enviando...' : 'Enviar mis datos'}
               </Button>
-              <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', mt: 1, color: '#94A3B8' }}>
+              <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', mt: 1, color: 'var(--soft)' }}>
                 Tus datos se envían de forma segura y solo son accesibles por tu médico.
               </Typography>
             </Grid>

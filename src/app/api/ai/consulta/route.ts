@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { leerJson, manejarErrores, ok, validar } from '@/lib/api/respuestas';
+import { generarTexto } from '@/lib/gemini';
 
 const SYSTEM_PROMPT = `Eres un asistente médico experto integrado en MediSystem, un sistema de gestión para consultorios médicos.
 Tu rol es ayudar a médicos y profesionales de la salud a:
@@ -23,58 +24,27 @@ Al final de cualquier nota clínica completa, siempre incluye la línea exacta:
 
 Si el médico solo hace una pregunta clínica o pide información, responde directamente sin ese formato.`;
 
-interface Mensaje {
-  role: 'user' | 'assistant';
-  content: string;
-}
+const esquemaConsulta = z.object({
+  mensajes: z.array(z.object({
+    role: z.enum(['user', 'assistant']),
+    content: z.string().min(1).max(20_000),
+  })).min(1, 'Falta el mensaje a enviar').max(60, 'La conversación es demasiado larga: empezá una nueva'),
+  contexto: z.string().max(2_000).optional(),
+});
 
-export async function POST(req: NextRequest) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: 'Configurá GEMINI_API_KEY en .env.local (gratuito en aistudio.google.com)' },
-      { status: 500 }
-    );
-  }
+export const POST = manejarErrores(async (req: NextRequest) => {
+  const { mensajes, contexto } = validar(esquemaConsulta, await leerJson(req));
 
-  const { mensajes, contexto } = await req.json() as { mensajes: Mensaje[]; contexto?: string };
-
-  const systemWithContext = contexto
-    ? `${SYSTEM_PROMPT}\n\nContexto del paciente:\n${contexto}`
-    : SYSTEM_PROMPT;
-
-  const contents = mensajes.map((m) => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }],
-  }));
-
-  const body = {
-    system_instruction: { parts: [{ text: systemWithContext }] },
-    contents,
-    generationConfig: {
-      temperature: 0.35,
-      maxOutputTokens: 1200,
+  const respuesta = await generarTexto(
+    mensajes.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', text: m.content })),
+    {
+      instruccionDeSistema: contexto
+        ? `${SYSTEM_PROMPT}\n\nContexto del paciente:\n${contexto}`
+        : SYSTEM_PROMPT,
+      temperatura: 0.35,
+      maxTokens: 1200,
     },
-  };
+  );
 
-  try {
-    const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      return NextResponse.json({ error: 'Error en Gemini API', detalle: err }, { status: 500 });
-    }
-
-    const data = await res.json();
-    const respuesta: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-    const esNota = respuesta.includes('[NOTA_LISTA]');
-
-    return NextResponse.json({ respuesta, esNota });
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
-  }
-}
+  return ok({ respuesta, esNota: respuesta.includes('[NOTA_LISTA]') });
+}, 'No se pudo procesar la consulta');

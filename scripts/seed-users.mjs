@@ -1,20 +1,27 @@
 // Run once to create the initial users in Firebase Auth + Firestore.
-// Usage: node scripts/seed-users.mjs
+// Usage (las contraseñas nunca van en el repo):
+//   SEED_ADMIN_PASSWORD=... SEED_DOCTOR_PASSWORD=... node --env-file=.env.local scripts/seed-users.mjs
 
-const API_KEY    = 'AIzaSyAgpwvCIkmY2RfKOgVOa1H4DyqqG7822lo';
-const PROJECT_ID = 'system-doctors';
+const API_KEY    = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+const PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+const { SEED_ADMIN_PASSWORD, SEED_DOCTOR_PASSWORD } = process.env;
+
+if (!API_KEY || !PROJECT_ID || !SEED_ADMIN_PASSWORD || !SEED_DOCTOR_PASSWORD) {
+  console.error('Faltan variables: NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_PROJECT_ID, SEED_ADMIN_PASSWORD, SEED_DOCTOR_PASSWORD');
+  process.exit(1);
+}
 
 const USERS = [
   {
     email:    'admin@medisystem.com',
-    password: 'Admin1234!',
+    password: SEED_ADMIN_PASSWORD,
     nombre:   'Super Admin',
     rol:      'super_admin',
     cuentaId: 'sistema',
   },
   {
     email:    'doctor@medisystem.com',
-    password: 'Doctor1234!',
+    password: SEED_DOCTOR_PASSWORD,
     nombre:   'Dr. Demo',
     rol:      'medico',
     cuentaId: 'consultorio_demo',

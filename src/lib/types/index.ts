@@ -28,13 +28,6 @@ export interface PricingAgreement {
   creadoEn: string;
 }
 
-export interface UserProvider {
-  id: string;
-  uid: string;
-  providerId: string;
-  creadoEn: string;
-}
-
 // --- Patient Enhancements ---
 export interface AntFamiliares {
   padre: string[];
@@ -105,6 +98,8 @@ export interface Turno {
   motivo: string;
   estado: EstadoTurno;
   notas?: string;
+  /** Fecha del turno para la que ya se envió el recordatorio por WhatsApp. */
+  recordatorioPara?: string;
   creadoEn: string;
   actualizadoEn: string;
 }
@@ -189,6 +184,27 @@ export interface FormularioInvitacion {
   datosPaciente?: Omit<Paciente, 'id' | 'creadoEn' | 'actualizadoEn'>;
 }
 
+// --- Medicamentos ---
+export type FormaFarmaceutica =
+  | 'comprimido' | 'capsula' | 'jarabe' | 'inyectable'
+  | 'crema' | 'gotas' | 'supositorio' | 'parche' | 'inhalador' | 'otro';
+
+export interface Medicamento {
+  id: string;
+  nombre: string;
+  principioActivo: string;
+  laboratorio?: string;
+  presentacion: string;
+  forma: FormaFarmaceutica;
+  categoria?: string;
+  requiereReceta: boolean;
+  precioSugerido?: number;
+  notas?: string;
+  disponibleEn?: string[];
+  creadoEn: string;
+  actualizadoEn: string;
+}
+
 // --- Documentos ---
 export type TipoDocumento = 'consentimiento' | 'informacion' | 'protocolo' | 'formulario' | 'otro';
 
@@ -266,4 +282,42 @@ export interface Presupuesto {
   creadoEn: string;
   actualizadoEn: string;
 }
+
+// ─── Cuenta / Planes ──────────────────────────────────────────────────────────
+
+export type PlanId = 'gratuito' | 'basico' | 'profesional' | 'clinica';
+
+export interface PlanLimites {
+  tokensIA: number;       // tokens/mes  (-1 = ilimitado)
+  pacientes: number;      // -1 = ilimitado
+  almacenamientoMB: number;
+  documentos: number;     // -1 = ilimitado
+}
+
+export interface Plan {
+  id: PlanId;
+  nombre: string;
+  precioBase: number;      // ARS/mes
+  limites: PlanLimites;
+  descripcion: string;
+  color: string;
+}
+
+export interface MetricaUso {
+  usado: number;
+  limite: number;          // -1 = ilimitado
+  unidad: string;
+  label: string;
+}
+
+export interface CuentaUso {
+  tokensIA: MetricaUso;
+  pacientes: MetricaUso;
+  almacenamientoMB: MetricaUso;
+  documentos: MetricaUso;
+  periodoActual: string;   // "2025-05"
+  costoExtraIA: number;    // ARS extra este mes
+  precioExtraToken: number; // ARS por cada 1000 tokens extra
+}
+
 

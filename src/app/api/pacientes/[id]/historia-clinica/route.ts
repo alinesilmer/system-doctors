@@ -1,26 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getHistoriaClinica, crearEntradaHistoriaClinica } from '@/lib/firestore/pacientes';
+import { NextRequest } from 'next/server';
+import { getHistoriaClinica, crearEntradaHistoriaClinica, getPaciente } from '@/lib/firestore/pacientes';
+import { leerJson, manejarErrores, noEncontrado, ok, validar } from '@/lib/api/respuestas';
+import { esquemaEntradaHistoriaClinica } from '@/lib/esquemas';
+import { hoyIso } from '@/lib/fechas';
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params;
-    const entradas = await getHistoriaClinica(id);
-    return NextResponse.json({ items: entradas });
-  } catch (e) {
-    return NextResponse.json({ error: 'Error al obtener historia clínica' }, { status: 500 });
-  }
-}
+type Contexto = { params: Promise<{ id: string }> };
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params;
-    const body = await req.json();
-    if (!body.tipo || !body.titulo || !body.contenido) {
-      return NextResponse.json({ error: 'Tipo, título y contenido son requeridos' }, { status: 400 });
-    }
-    const entradaId = await crearEntradaHistoriaClinica(id, { ...body, pacienteId: id });
-    return NextResponse.json({ data: { id: entradaId }, mensaje: 'Entrada creada correctamente' }, { status: 201 });
-  } catch (e) {
-    return NextResponse.json({ error: 'Error al crear entrada' }, { status: 500 });
-  }
-}
+export const GET = manejarErrores(async (_req: NextRequest, { params }: Contexto) => {
+  const { id } = await params;
+  return ok({ items: await getHistoriaClinica(id) });
+}, 'Error al obtener historia clínica');
+
+export const POST = manejarErrores(async (req: NextRequest, { params }: Contexto) => {
+  const { id } = await params;
+  const cuerpo = await leerJson(req);
+  const entrada = validar(esquemaEntradaHistoriaClinica, { fecha: hoyIso(), ...(cuerpo as object) });
+
+  // Sin esta comprobación la entrada quedaría colgada de un paciente que no existe.
+  if (!await getPaciente(id)) throw noEncontrado('Paciente no encontrado');
+
+  const entradaId = await crearEntradaHistoriaClinica(id, { ...entrada, pacienteId: id });
+  return ok({ data: { id: entradaId }, mensaje: 'Entrada creada correctamente' }, 201);
+}, 'Error al crear entrada');
